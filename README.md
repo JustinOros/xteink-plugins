@@ -1,14 +1,28 @@
+<table>
+  <tr>
+    <td><img src="screenshot1.jpg" width="100%"/></td>
+    <td><img src="screenshot2.jpg" width="100%"/></td>
+  </tr>
+</table>
+
 # xteink-plugins
 
 A plugin system for customizing and extending [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader) firmware on your xteink device. Plugins are applied as source-level patches before the firmware is compiled and flashed.
 
-![Smaller Fonts plugin settings tab on the xteink device](screenshot.jpg)
-
 ## Plugins
+
+### Dark Mode
+
+Adds a **Dark Mode** option to the Plugins settings tab. When enabled, the screen is inverted after each page render, producing white-on-black text across all reader formats (EPUB, TXT, and XTC).
+
+| State | Effect |
+|-------|--------|
+| **Disabled** | Normal display (default) |
+| **Enabled** | Screen inverted — white text on black background |
 
 ### Smaller Fonts
 
-Adds a **Plugins** settings tab to CrossPoint with a "Smaller Fonts" option. When enabled, your chosen reader font is transparently substituted with a smaller variant — no need to change your font preference.
+Adds a **Smaller Fonts** option to the Plugins settings tab. When enabled, your chosen reader font is transparently substituted with a smaller variant — no need to change your font preference.
 
 | Mode | Effect |
 |------|--------|
@@ -48,6 +62,10 @@ The installer will:
 xteink-plugins/
 ├── install.py              # Interactive installer: clone → patch → build → flash
 └── plugins/
+    ├── darkmode/
+    │   ├── patch.py                      # Patch script applied to the CrossPoint source
+    │   ├── DarkModePlugin.h/.cpp         # Dark mode state and screen inversion logic
+    │   └── DarkModeSettingsPage.h/.cpp   # Settings UI activity
     └── smallerfonts/
         ├── patch.py                        # Patch script applied to the CrossPoint source
         ├── SmallerFontsPlugin.h/.cpp       # Font resolution logic
