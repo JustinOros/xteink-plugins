@@ -53,6 +53,19 @@ From the root of this repository, run:
 python3 install.py
 ```
 
+By default this uses the `default` build environment. To use a different environment pass `-e`:
+
+```bash
+python3 install.py -e slim
+python3 install.py -e gh_release
+```
+
+| Environment | Description |
+|-------------|-------------|
+| `default` | Debug logging enabled, version from current git branch (recommended) |
+| `gh_release` | Info logging only, version hardcoded to release tag |
+| `slim` | No serial logging, smallest binary size |
+
 The installer will:
 
 1. Clone the CrossPoint Reader source repository
@@ -96,6 +109,14 @@ If you see `'pio' is not recognized as an internal or external command`, Platfor
 
 ```powershell
 $env:PATH += ";$env:USERPROFILE\.platformio\penv\Scripts"
+[Environment]::SetEnvironmentVariable("PATH", $env:PATH, "User")
+```
+
+If you installed Python from the Microsoft Store, the scripts folder is in a different location. Run this instead to find and add it:
+
+```powershell
+$scripts = (Get-ChildItem "$env:USERPROFILE\AppData\Local\Packages" -Filter "Scripts" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -like "*Python*" } | Select-Object -First 1).FullName
+$env:PATH += ";$scripts"
 [Environment]::SetEnvironmentVariable("PATH", $env:PATH, "User")
 ```
 
