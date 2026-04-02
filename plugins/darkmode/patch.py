@@ -220,7 +220,6 @@ def patch_settings_cpp(repo_dir):
             '    },'
         )
 
-    # Value rendering — handle all states: neither, only dark, both
     both_present = 'DarkModePlugin::stateName' in content and 'SmallerFontsPlugin::modeName' in content
     only_dark    = 'DarkModePlugin::stateName' in content and 'SmallerFontsPlugin::modeName' not in content
     neither      = 'DarkModePlugin::stateName' not in content
@@ -275,7 +274,11 @@ def patch_epub_reader(repo_dir):
     path    = find_first("EpubReaderActivity.cpp", repo_dir)
     content = read_file(path)
 
-    if "isDarkMode" in content:
+    image_block_patched = (
+        'renderer.fillRect' in content and
+        'isDarkMode' in content.split('renderer.fillRect')[1].split('FAST_REFRESH')[0]
+    )
+    if "isDarkMode" in content and image_block_patched:
         print("  EpubReaderActivity.cpp already patched, skipping.")
         return
 
@@ -293,6 +296,36 @@ def patch_epub_reader(repo_dir):
         '  if (DarkModePlugin::isDarkMode(static_cast<DarkModeState>(SETTINGS.darkModeState))) renderer.invertScreen();\n'
         '  fcm->logStats("bw_render");\n'
     )
+
+    old_image_block = (
+        '    if (page->getImageBoundingBox(imgX, imgY, imgW, imgH)) {\n'
+        '      renderer.fillRect(imgX + orientedMarginLeft, imgY + orientedMarginTop, imgW, imgH, false);\n'
+        '      renderer.displayBuffer(HalDisplay::FAST_REFRESH);\n'
+        '\n'
+        '      // Re-render page content to restore images into the blanked area\n'
+        '      // Status bar is not re-rendered here to avoid reading stale dynamic values (e.g. battery %)\n'
+        '      page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);\n'
+        '      renderer.displayBuffer(HalDisplay::FAST_REFRESH);\n'
+        '    } else {\n'
+        '      renderer.displayBuffer(HalDisplay::HALF_REFRESH);\n'
+        '    }\n'
+    )
+    new_image_block = (
+        '    if (page->getImageBoundingBox(imgX, imgY, imgW, imgH)) {\n'
+        '      const bool darkMode = DarkModePlugin::isDarkMode(static_cast<DarkModeState>(SETTINGS.darkModeState));\n'
+        '      renderer.fillRect(imgX + orientedMarginLeft, imgY + orientedMarginTop, imgW, imgH, darkMode);\n'
+        '      if (darkMode) renderer.invertScreen();\n'
+        '      renderer.displayBuffer(HalDisplay::FAST_REFRESH);\n'
+        '\n'
+        '      page->render(renderer, SETTINGS.getReaderFontId(), orientedMarginLeft, orientedMarginTop);\n'
+        '      if (darkMode) renderer.invertScreen();\n'
+        '      renderer.displayBuffer(HalDisplay::FAST_REFRESH);\n'
+        '    } else {\n'
+        '      renderer.displayBuffer(HalDisplay::HALF_REFRESH);\n'
+        '    }\n'
+    )
+    if old_image_block in content:
+        content = content.replace(old_image_block, new_image_block)
 
     write_file(path, content)
     print("  EpubReaderActivity.cpp patched.")
