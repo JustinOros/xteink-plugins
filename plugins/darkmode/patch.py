@@ -56,6 +56,30 @@ def patch_cross_point_settings_h(repo_dir):
     print("  CrossPointSettings.h patched.")
 
 
+def patch_settings_list_h(repo_dir):
+    path    = find_first("SettingsList.h", repo_dir)
+    content = read_file(path)
+
+    if "darkModeState" in content:
+        print("  SettingsList.h already patched, skipping.")
+        return
+
+    entries = (
+        '      SettingInfo::Enum(StrId::STR_NONE_OPT, &CrossPointSettings::darkModeState,\n'
+        '                        {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "darkModeState"),\n'
+        '      SettingInfo::Enum(StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
+        '                        {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"),\n'
+    )
+
+    content = content.replace(
+        '  };\n  return list;\n}\n',
+        entries + '  };\n  return list;\n}\n'
+    )
+
+    write_file(path, content)
+    print("  SettingsList.h patched.")
+
+
 def patch_settings_h(repo_dir):
     path    = find_first("SettingsActivity.h", repo_dir)
     content = read_file(path)
@@ -372,6 +396,9 @@ def patch(repo_dir: str):
 
     print("  Patching CrossPointSettings.h...")
     patch_cross_point_settings_h(repo_dir)
+
+    print("  Patching SettingsList.h...")
+    patch_settings_list_h(repo_dir)
 
     print("  Patching SettingsActivity.h...")
     patch_settings_h(repo_dir)
