@@ -53,6 +53,19 @@ From the root of this repository, run:
 python3 install.py
 ```
 
+By default this uses the `default` build environment. To use a different environment pass `-e`:
+
+```bash
+python3 install.py -e slim
+python3 install.py -e gh_release
+```
+
+| Environment | Description |
+|-------------|-------------|
+| `default` | Debug logging enabled, version from current git branch (recommended) |
+| `gh_release` | Info logging only, version hardcoded to release tag |
+| `slim` | No serial logging, smallest binary size |
+
 The installer will:
 
 1. Clone the CrossPoint Reader source repository

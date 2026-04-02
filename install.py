@@ -6,10 +6,17 @@ import shutil
 import subprocess
 import glob
 import importlib.util
+import argparse
 
-REPO_URL  = "https://github.com/crosspoint-reader/crosspoint-reader.git"
-REPO_DIR  = "crosspoint-reader"
+REPO_URL    = "https://github.com/crosspoint-reader/crosspoint-reader.git"
+REPO_DIR    = "crosspoint-reader"
 PLUGINS_DIR = "plugins"
+
+ENVIRONMENTS = {
+    "default":    "Debug logging enabled, version from current git branch (recommended)",
+    "gh_release": "Info logging only, version hardcoded to release tag",
+    "slim":       "No serial logging, smallest binary size",
+}
 
 
 def run(cmd, cwd=None, check=True):
@@ -176,20 +183,38 @@ def prompt_for_upload_port():
         print("  Please enter a valid port name.")
 
 
-def build_and_flash():
-    print("\nBuilding firmware with PlatformIO...")
-    run("pio run --environment default", cwd=REPO_DIR)
+def build_and_flash(environment: str):
+    print(f"\nBuilding firmware with PlatformIO (environment: {environment})...")
+    run(f"pio run --environment {environment}", cwd=REPO_DIR)
 
     port = prompt_for_upload_port()
 
     print(f"\n  Flashing to {port}...")
     run(
-        f"pio run --target upload --environment default --upload-port {port}",
+        f"pio run --target upload --environment {environment} --upload-port {port}",
         cwd=REPO_DIR,
     )
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="xteink Plugin Installer",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    env_help = "\n".join(f"  {name}: {desc}" for name, desc in ENVIRONMENTS.items())
+    parser.add_argument(
+        "-e", "--environment",
+        default="default",
+        choices=ENVIRONMENTS.keys(),
+        metavar="ENV",
+        help=f"PlatformIO build environment (default: default)\n{env_help}",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+
     print("=" * 60)
     print("  xteink Plugin Installer")
     print("=" * 60)
@@ -199,6 +224,9 @@ def main():
     print("  no responsibility for any damage that may occur to your")
     print("  device as a result of using this installer.")
     print()
+    print(f"  Environment : {args.environment}")
+    print(f"  {ENVIRONMENTS[args.environment]}")
+    print()
     answer = input("  Do you wish to proceed? [Y/n]: ").strip().lower()
     if answer not in ("", "y", "yes"):
         print("  Aborted.")
@@ -206,8 +234,9 @@ def main():
     print()
     clone_repo()
     apply_plugins()
-    build_and_flash()
+    build_and_flash(args.environment)
     print("\nDone.")
+
 
 if __name__ == "__main__":
     main()
