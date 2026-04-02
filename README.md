@@ -78,6 +78,18 @@ xteink-plugins/
         └── SmallerFontsSettingsPage.h/.cpp # Settings UI activity
 ```
 
+## Troubleshooting
+
+### Linux: Permission denied when flashing
+
+If you see an error like `Could not open /dev/ttyACM0, the port is busy or doesn't exist` or `Permission denied`, your user needs to be added to the `dialout` group:
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+Log out and log back in for the change to take effect, then re-run `install.py`.
+
 ## Adding a Plugin
 
 1. Create a new directory under `plugins/` with your plugin's name.
