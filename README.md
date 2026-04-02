@@ -42,7 +42,7 @@ Supports Bookerly, Noto Sans, and OpenDyslexic. The plugin also generates and em
 Install Python dependencies with:
 
 ```bash
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 ## Usage
@@ -50,7 +50,7 @@ pip install -r requirements.txt
 From the root of this repository, run:
 
 ```bash
-python install.py
+python3 install.py
 ```
 
 The installer will:
