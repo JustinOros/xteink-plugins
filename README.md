@@ -53,19 +53,6 @@ From the root of this repository, run:
 python3 install.py
 ```
 
-By default this uses the `default` build environment. To use a different environment pass `-e`:
-
-```bash
-python3 install.py -e slim
-python3 install.py -e gh_release
-```
-
-| Environment | Description |
-|-------------|-------------|
-| `default` | Debug logging enabled, version from current git branch (recommended) |
-| `gh_release` | Info logging only, version hardcoded to release tag |
-| `slim` | No serial logging, smallest binary size |
-
 The installer will:
 
 1. Clone the CrossPoint Reader source repository
@@ -102,6 +89,17 @@ sudo usermod -aG dialout $USER
 ```
 
 Log out and log back in for the change to take effect, then re-run `install.py`.
+
+### Windows: 'pio' is not recognized
+
+If you see `'pio' is not recognized as an internal or external command`, PlatformIO is not on your PATH. Run the following in PowerShell to add it:
+
+```powershell
+$env:PATH += ";$env:USERPROFILE\.platformio\penv\Scripts"
+[Environment]::SetEnvironmentVariable("PATH", $env:PATH, "User")
+```
+
+Restart your terminal and re-run `install.py`.
 
 ## Adding a Plugin
 
