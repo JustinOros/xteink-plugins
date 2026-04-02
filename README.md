@@ -39,6 +39,12 @@ Supports Bookerly, Noto Sans, and OpenDyslexic. The plugin also generates and em
 - `git`
 - Your xteink device connected via USB
 
+Install Python dependencies with:
+
+```bash
+pip install -r requirements.txt
+```
+
 ## Usage
 
 From the root of this repository, run:
