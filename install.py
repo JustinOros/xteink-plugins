@@ -50,7 +50,7 @@ def run_plugin_patch(plugin_dir: str) -> bool:
         return False
 
 
-def apply_plugins():
+def apply_plugins(yes_all: bool = False):
     print("[2/3] Applying plugins...")
 
     if not os.path.exists(PLUGINS_DIR):
@@ -70,7 +70,11 @@ def apply_plugins():
         plugin_path = os.path.join(PLUGINS_DIR, plugin_name)
 
         print(f"\n  Plugin: {plugin_name}")
-        answer = input(f"  Install '{plugin_name}'? [Y/n]: ").strip().lower()
+        if yes_all:
+            answer = "y"
+            print(f"  Install '{plugin_name}'? [Y/n]: Y (--yes)")
+        else:
+            answer = input(f"  Install '{plugin_name}'? [Y/n]: ").strip().lower()
 
         if answer in ("", "y", "yes"):
             print(f"  Installing {plugin_name}...")
@@ -209,6 +213,11 @@ def parse_args():
         metavar="ENV",
         help=f"PlatformIO build environment (default: default)\n{env_help}",
     )
+    parser.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="Auto-answer Y to all plugin install prompts",
+    )
     return parser.parse_args()
 
 
@@ -227,13 +236,13 @@ def main():
     print(f"  Environment : {args.environment}")
     print(f"  {ENVIRONMENTS[args.environment]}")
     print()
-    answer = input("  Do you wish to proceed? [Y/n]: ").strip().lower()
+    answer = input("  Do you wish to proceed? [Y/n]: ").strip().lower() if not args.yes else "y"
     if answer not in ("", "y", "yes"):
         print("  Aborted.")
         sys.exit(0)
     print()
     clone_repo()
-    apply_plugins()
+    apply_plugins(yes_all=args.yes)
     build_and_flash(args.environment)
     print("\nDone.")
 

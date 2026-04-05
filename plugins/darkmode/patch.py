@@ -421,6 +421,68 @@ def patch_xtc_reader(repo_dir):
     print("  XtcReaderActivity.cpp patched.")
 
 
+def patch_web_server(repo_dir):
+    path    = find_first("CrossPointWebServer.cpp", repo_dir)
+    content = read_file(path)
+
+    if '"Dark Mode"' in content or '"Smaller Fonts"' in content:
+        print("  CrossPointWebServer.cpp already patched, skipping.")
+        return
+
+    name_overrides = (
+        '\n'
+        '    if (s.key) {\n'
+        '      if (strcmp(s.key, "darkModeState") == 0) {\n'
+        '        doc["name"] = "Dark Mode";\n'
+        '        doc["category"] = "Plugins";\n'
+        '      } else if (strcmp(s.key, "smallerFontsMode") == 0) {\n'
+        '        doc["name"] = "Smaller Fonts";\n'
+        '        doc["category"] = "Plugins";\n'
+        '      }\n'
+        '    }\n'
+    )
+
+    content = content.replace(
+        '    doc["category"] = I18N.get(s.category);\n'
+        '\n'
+        '    switch (s.type) {',
+        '    doc["category"] = I18N.get(s.category);\n'
+        + name_overrides +
+        '\n'
+        '    switch (s.type) {'
+    )
+
+    enum_overrides = (
+        '        if (s.key) {\n'
+        '          if (strcmp(s.key, "darkModeState") == 0) {\n'
+        '            JsonArray opts = doc["options"].to<JsonArray>();\n'
+        '            opts.add("Disabled");\n'
+        '            opts.add("Enabled");\n'
+        '          } else if (strcmp(s.key, "smallerFontsMode") == 0) {\n'
+        '            JsonArray opts = doc["options"].to<JsonArray>();\n'
+        '            opts.add("Disabled");\n'
+        '            opts.add("Smaller");\n'
+        '            opts.add("Smallest");\n'
+        '          }\n'
+        '        }\n'
+    )
+
+    content = content.replace(
+        '        for (const auto& opt : s.enumValues) {\n'
+        '          options.add(I18N.get(opt));\n'
+        '        }\n'
+        '        break;\n',
+        '        for (const auto& opt : s.enumValues) {\n'
+        '          options.add(I18N.get(opt));\n'
+        '        }\n'
+        + enum_overrides +
+        '        break;\n'
+    )
+
+    write_file(path, content)
+    print("  CrossPointWebServer.cpp patched.")
+
+
 def patch(repo_dir: str):
     plugin_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -447,6 +509,9 @@ def patch(repo_dir: str):
 
     print("  Patching XtcReaderActivity.cpp...")
     patch_xtc_reader(repo_dir)
+
+    print("  Patching CrossPointWebServer.cpp (web UI)...")
+    patch_web_server(repo_dir)
 
 
 if __name__ == "__main__":
