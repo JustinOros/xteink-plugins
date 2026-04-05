@@ -13,7 +13,7 @@ A plugin system for customizing and extending [CrossPoint Reader](https://github
 
 ### Dark Mode
 
-Adds a **Dark Mode** option to the Plugins settings tab. When enabled, the screen is inverted after each page render, producing white-on-black text across all reader formats (EPUB, TXT, and XTC).
+Adds a **Dark Mode** option to the Plugins settings tab and the web interface Settings page. When enabled, the screen is inverted after each page render, producing white-on-black text across all reader formats (EPUB, TXT, and XTC).
 
 | State | Effect |
 |-------|--------|
@@ -22,7 +22,7 @@ Adds a **Dark Mode** option to the Plugins settings tab. When enabled, the scree
 
 ### Smaller Fonts
 
-Adds a **Smaller Fonts** option to the Plugins settings tab. When enabled, your chosen reader font is transparently substituted with a smaller variant — no need to change your font preference.
+Adds a **Smaller Fonts** option to the Plugins settings tab and the web interface Settings page. When enabled, your chosen reader font is transparently substituted with a smaller variant — no need to change your font preference.
 
 | Mode | Effect |
 |------|--------|
@@ -53,11 +53,23 @@ From the root of this repository, run:
 python3 install.py
 ```
 
+To auto-accept all plugin prompts, pass `--yes` (or `-y`):
+
+```bash
+python3 install.py --yes
+```
+
 By default this uses the `default` build environment. To use a different environment pass `-e`:
 
 ```bash
 python3 install.py -e slim
 python3 install.py -e gh_release
+```
+
+Flags can be combined:
+
+```bash
+python3 install.py --yes -e gh_release
 ```
 
 | Environment | Description |
