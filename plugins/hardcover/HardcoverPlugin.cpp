@@ -26,6 +26,7 @@ constexpr char CACHE_DIR[]     = "/.crosspoint";
 struct InProgressBook {
     std::string isbn;
     int         page;
+    int         pct;   // overall book progress percentage (1-100)
 };
 
 // ---- ISBN extraction -------------------------------------------------------
@@ -192,7 +193,7 @@ std::vector<InProgressBook> collectInProgressBooks() {
         std::string isbn = getIsbnFromEpub(path);
         if (isbn.empty()) continue;
 
-        result.push_back({isbn, page});
+        result.push_back({isbn, page, pct});
     }
     return result;
 }
@@ -212,7 +213,7 @@ std::vector<InProgressBook> collectCompletedBooks() {
         std::string isbn = getIsbnFromEpub(path);
         if (isbn.empty()) continue;
 
-        result.push_back({isbn, page});
+        result.push_back({isbn, page, pct});
     }
     return result;
 }
@@ -267,13 +268,14 @@ int getUserId(const std::string& token) {
 // Step 1: Look up book_id from ISBN-13 via editions table.
 // Also returns existing user_book id (0 if none).
 bool lookupIds(const std::string& isbn, const std::string& token,
-               int& outBookId, int& outUserBookId) {
+               int& outBookId, int& outUserBookId, int& outEditionPages, int& outActiveReadId) {
     char body[400];
     snprintf(body, sizeof(body),
         "{\"query\":\"{"
         "editions(where:{isbn_13:{_eq:\\\"%s\\\"}},limit:1){"
-        "book_id "
-        "book{id user_books(limit:1){id}}"
+        "book_id pages "
+        "book{id user_books(limit:1){id "
+        "user_book_reads(where:{started_at:{_is_null:false},finished_at:{_is_null:true}},limit:1){id}}}"
         "}}\"}",
         isbn.c_str());
 
@@ -298,8 +300,15 @@ bool lookupIds(const std::string& isbn, const std::string& token,
 
     JsonArray ubs = editions[0]["book"]["user_books"].as<JsonArray>();
     outUserBookId = (ubs.size() > 0) ? (ubs[0]["id"] | 0) : 0;
+    outEditionPages = editions[0]["pages"] | 0;
+    if (ubs.size() > 0) {
+        JsonArray reads = ubs[0]["user_book_reads"].as<JsonArray>();
+        outActiveReadId = (reads.size() > 0) ? (reads[0]["id"] | 0) : 0;
+    } else {
+        outActiveReadId = 0;
+    }
 
-    LOG_DBG("HCV", "ISBN %s -> book_id=%d", isbn.c_str(), outBookId);
+    LOG_DBG("HCV", "ISBN %s -> book_id=%d, pages=%d, active_read_id=%d", isbn.c_str(), outBookId, outEditionPages, outActiveReadId);
     return true;
 }
 
@@ -332,15 +341,25 @@ int upsertUserBook(int bookId, int userBookId, const std::string& token) {
     return id;
 }
 
-bool updateProgress(int userId, int bookId, int page, const std::string& token) {
+bool updateProgress(int userBookId, int page, int activeReadId, const std::string& token) {
     char body[512];
-    snprintf(body, sizeof(body),
-        "{\"query\":\"mutation{"
-        "insert_user_book_read(user_book_id:%d,user_book_read:{progress_pages:%d}){"
-        "id}}\"}",
-        bookId, page);
+    if (activeReadId != 0) {
+        // Update existing active read session
+        snprintf(body, sizeof(body),
+            "{\"query\":\"mutation{"
+            "update_user_book_read(id:%d,object:{progress_pages:%d}){"
+            "id}}\"}",
+            activeReadId, page);
+    } else {
+        // No active session — insert a new one
+        snprintf(body, sizeof(body),
+            "{\"query\":\"mutation{"
+            "insert_user_book_read(user_book_id:%d,user_book_read:{progress_pages:%d}){"
+            "id}}\"}",
+            userBookId, page);
+    }
     String resp = graphqlPost(body, token);
-    LOG_DBG("HCV", "insert_user_book_read: %s", resp.c_str());
+    LOG_DBG("HCV", "updateProgress (read_id=%d): %s", activeReadId, resp.c_str());
     if (!resp.isEmpty() && resp.indexOf("\"errors\"") == -1) return true;
     LOG_ERR("HCV", "updateProgress failed: %s", resp.c_str());
     return false;
@@ -348,8 +367,8 @@ bool updateProgress(int userId, int bookId, int page, const std::string& token) 
 
 // New function to mark books as Read (status_id=3)
 bool markAsRead(const std::string& isbn, const std::string& token) {
-    int bookId = 0, userBookId = 0;
-    if (!lookupIds(isbn, token, bookId, userBookId)) return false;
+    int bookId = 0, userBookId = 0, editionPages = 0, activeReadId = 0;
+    if (!lookupIds(isbn, token, bookId, userBookId, editionPages, activeReadId)) return false;
     if (userBookId == 0) return false;
 
     char body[300];
@@ -364,14 +383,20 @@ bool markAsRead(const std::string& isbn, const std::string& token) {
 }
 
 bool syncBook(const InProgressBook& book, int userId, const std::string& token) {
-    int bookId = 0, userBookId = 0;
-    if (!lookupIds(book.isbn, token, bookId, userBookId)) return false;
+    int bookId = 0, userBookId = 0, editionPages = 0, activeReadId = 0;
+    if (!lookupIds(book.isbn, token, bookId, userBookId, editionPages, activeReadId)) return false;
 
     // Ensure book is in library as Currently Reading
     int resolvedUserBookId = upsertUserBook(bookId, userBookId, token);
     if (resolvedUserBookId == 0) return false;
 
-    return updateProgress(userId, resolvedUserBookId, book.page, token);
+    // Compute absolute page from percentage and edition page count
+    int absolutePage = 0;
+    if (editionPages > 0)
+        absolutePage = static_cast<int>(book.pct / 100.0f * editionPages + 0.5f);
+    LOG_DBG("HCV", "Progress: %d%% -> page %d/%d", book.pct, absolutePage, editionPages);
+
+    return updateProgress(resolvedUserBookId, absolutePage, activeReadId, token);
 }
 
 }  // anonymous namespace
