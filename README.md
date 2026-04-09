@@ -32,6 +32,23 @@ Adds a **Smaller Fonts** option to the Plugins settings tab and the web interfac
 
 Supports Bookerly, Noto Sans, and OpenDyslexic. The plugin also generates and embeds Bookerly at 8pt and 10pt — sizes not included in the stock firmware.
 
+### Hardcover Sync
+
+Automatically syncs your reading progress between your xteink device and [Hardcover.app](https://hardcover.app). This plugin:
+
+- Extracts ISBN metadata from EPUB files to identify books
+- Tracks reading progress (page numbers) while you read
+- Automatically syncs progress for books with > 0% completion
+- Marks books as "Read" (status_id: 3) when you reach 100%+ completion
+- Requires a Hardcover API token configured in Settings
+
+Books without ISBN metadata or at 0% completion are skipped. 100%+ completed books are automatically moved to your "Read" shelf on Hardcover.
+
+**Requirements:**
+- Active internet connection via WiFi
+- Hardcover account and API token
+- Books with embedded ISBN metadata
+
 ## Requirements
 
 - Python 3.10+
