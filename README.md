@@ -76,17 +76,17 @@ To auto-accept all plugin prompts, pass `--yes` (or `-y`):
 python3 install.py --yes
 ```
 
-By default this uses the `default` build environment. To use a different environment pass `-e`:
+By default this uses the `default` build environment. To use a different environment pass `--environment` (or `-e`):
 
 ```bash
-python3 install.py -e slim
-python3 install.py -e gh_release
+python3 install.py --environment slim
+python3 install.py --environment gh_release
 ```
 
 Flags can be combined:
 
 ```bash
-python3 install.py --yes -e gh_release
+python3 install.py -y -e gh_release
 ```
 
 | Environment | Description |
