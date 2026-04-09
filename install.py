@@ -7,6 +7,7 @@ import subprocess
 import glob
 import importlib.util
 import argparse
+import inspect
 
 REPO_URL    = "https://github.com/crosspoint-reader/crosspoint-reader.git"
 REPO_DIR    = "crosspoint-reader"
@@ -32,7 +33,7 @@ def clone_repo():
     run(f"git clone --recursive {REPO_URL} {REPO_DIR}")
 
 
-def run_plugin_patch(plugin_dir: str) -> bool:
+def run_plugin_patch(plugin_dir: str, yes_all: bool = False) -> bool:
     patch_path = os.path.join(plugin_dir, "patch.py")
     if not os.path.exists(patch_path):
         print(f"  WARNING: No patch.py found in {plugin_dir}, skipping.")
@@ -43,7 +44,11 @@ def run_plugin_patch(plugin_dir: str) -> bool:
     try:
         spec.loader.exec_module(module)
         if hasattr(module, "patch"):
-            module.patch(os.path.abspath(REPO_DIR))
+            sig = inspect.signature(module.patch)
+            if "yes_all" in sig.parameters:
+                module.patch(os.path.abspath(REPO_DIR), yes_all=yes_all)
+            else:
+                module.patch(os.path.abspath(REPO_DIR))
         return True
     except Exception as exc:
         print(f"  ERROR while running patch.py for {plugin_dir}: {exc}")
@@ -78,7 +83,7 @@ def apply_plugins(yes_all: bool = False):
 
         if answer in ("", "y", "yes"):
             print(f"  Installing {plugin_name}...")
-            success = run_plugin_patch(plugin_path)
+            success = run_plugin_patch(plugin_path, yes_all=yes_all)
             if success:
                 print(f"  ✓ {plugin_name} installed.")
             else:
