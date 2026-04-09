@@ -114,10 +114,14 @@ xteink-plugins/
     │   ├── patch.py                      # Patch script applied to the CrossPoint source
     │   ├── DarkModePlugin.h/.cpp         # Dark mode state and screen inversion logic
     │   └── DarkModeSettingsPage.h/.cpp   # Settings UI activity
-    └── smallerfonts/
+    ├── smallerfonts/
+    │   ├── patch.py                        # Patch script applied to the CrossPoint source
+    │   ├── SmallerFontsPlugin.h/.cpp       # Font resolution logic
+    │   └── SmallerFontsSettingsPage.h/.cpp # Settings UI activity
+    └── hardcover/
         ├── patch.py                        # Patch script applied to the CrossPoint source
-        ├── SmallerFontsPlugin.h/.cpp       # Font resolution logic
-        └── SmallerFontsSettingsPage.h/.cpp # Settings UI activity
+        ├── HardcoverPlugin.h/.cpp          # Hardcover sync logic
+        └── HardcoverSettingsPage.h/.cpp    # Settings UI activity
 ```
 
 ## Troubleshooting
