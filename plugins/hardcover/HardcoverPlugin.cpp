@@ -265,17 +265,15 @@ int getUserId(const std::string& token) {
     return id;
 }
 
-// Step 1: Look up book_id from ISBN-13 via editions table.
-// Also returns existing user_book id (0 if none).
+// Step 1: Look up book_id and page count from ISBN-13 via editions table.
 bool lookupIds(const std::string& isbn, const std::string& token,
                int& outBookId, int& outUserBookId, int& outEditionPages, int& outActiveReadId) {
-    char body[400];
+    // Query 1: edition lookup for book_id and pages
+    char body[300];
     snprintf(body, sizeof(body),
         "{\"query\":\"{"
         "editions(where:{isbn_13:{_eq:\\\"%s\\\"}},limit:1){"
-        "book_id pages "
-        "book{id user_books(limit:1){id "
-        "user_book_reads(where:{started_at:{_is_null:false},finished_at:{_is_null:true}},limit:1){id}}}"
+        "book_id pages"
         "}}\"}",
         isbn.c_str());
 
@@ -295,20 +293,45 @@ bool lookupIds(const std::string& isbn, const std::string& token,
         return false;
     }
 
-    outBookId = editions[0]["book"]["id"] | 0;
+    outBookId = editions[0]["book_id"] | 0;
     if (outBookId == 0) return false;
-
-    JsonArray ubs = editions[0]["book"]["user_books"].as<JsonArray>();
-    outUserBookId = (ubs.size() > 0) ? (ubs[0]["id"] | 0) : 0;
     outEditionPages = editions[0]["pages"] | 0;
-    if (ubs.size() > 0) {
-        JsonArray reads = ubs[0]["user_book_reads"].as<JsonArray>();
-        outActiveReadId = (reads.size() > 0) ? (reads[0]["id"] | 0) : 0;
-    } else {
-        outActiveReadId = 0;
+
+    // Query 2: fetch current user's user_book and active read session for this book
+    char body2[300];
+    snprintf(body2, sizeof(body2),
+        "{\"query\":\"{"
+        "me{user_books(where:{book_id:{_eq:%d}},limit:1){"
+        "id user_book_reads(limit:1,order_by:{id:desc}){id}"
+        "}}}\"}",
+        outBookId);
+
+    LOG_DBG("HCV", "lookupIds q2 body: %s", body2);
+    String resp2 = graphqlPost(body2, token);
+    LOG_DBG("HCV", "lookupIds q2 raw: %s", resp2.c_str());
+    if (resp2.isEmpty()) return false;
+    if (resp2.indexOf("\"errors\"") != -1) {
+        LOG_ERR("HCV", "User book lookup error book_id=%d: %s", outBookId, resp2.c_str());
+        return false;
     }
 
-    LOG_DBG("HCV", "ISBN %s -> book_id=%d, pages=%d, active_read_id=%d", isbn.c_str(), outBookId, outEditionPages, outActiveReadId);
+    JsonDocument doc2;
+    if (deserializeJson(doc2, resp2) != DeserializationError::Ok) return false;
+
+    JsonArray me = doc2["data"]["me"].as<JsonArray>();
+    outUserBookId = 0;
+    outActiveReadId = 0;
+    if (me.size() > 0) {
+        JsonArray ubs = me[0]["user_books"].as<JsonArray>();
+        if (ubs.size() > 0) {
+            outUserBookId = ubs[0]["id"] | 0;
+            JsonArray reads = ubs[0]["user_book_reads"].as<JsonArray>();
+            outActiveReadId = (reads.size() > 0) ? (reads[0]["id"] | 0) : 0;
+        }
+    }
+
+    LOG_DBG("HCV", "ISBN %s -> book_id=%d, pages=%d, user_book_id=%d, active_read_id=%d",
+            isbn.c_str(), outBookId, outEditionPages, outUserBookId, outActiveReadId);
     return true;
 }
 
@@ -448,4 +471,3 @@ SyncResult syncProgress() {
 }
 
 }  // namespace HardcoverPlugin
-
