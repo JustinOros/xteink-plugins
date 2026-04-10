@@ -2,6 +2,7 @@
   <tr>
     <td><img src="screenshot1.jpg?1" height="400"/></td>
     <td><img src="screenshot2.jpg?1" height="400"/></td>
+    <td><img src="screenshot3.jpg?1" height="400"/></td>
   </tr>
 </table>
 
