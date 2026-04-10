@@ -116,6 +116,7 @@ Note: This script modifies and flashes custom firmware to your device. The autho
 
 ## Repository Structure
 
+```
 xteink-plugins/
 ├── install.py              # Interactive installer: clone → patch → build → flash
 └── plugins/
@@ -136,6 +137,7 @@ xteink-plugins/
         ├── patch.py
         ├── HardcoverPlugin.h/.cpp
         └── HardcoverSyncActivity.h/.cpp
+```
 
 ## Troubleshooting
 
