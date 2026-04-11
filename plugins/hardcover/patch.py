@@ -399,7 +399,7 @@ def patch(repo_dir: str, yes_all: bool = False):
     else:
         print("  Hardcover API token required.")
         print("  Get yours from https://hardcover.app/account/api")
-        print("  Paste the token (with or without the 'Bearer ' prefix).")
+        print("  Paste your Hardcover API token below.")
         while not token:
             raw = input("  Hardcover API token: ").strip()
             if raw.startswith("Bearer "):
