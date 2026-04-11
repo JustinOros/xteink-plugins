@@ -25,11 +25,23 @@ def run(cmd, cwd=None, check=True):
     return subprocess.run(cmd, shell=True, cwd=cwd, check=check)
 
 
+def remove_readonly(func, path, _):
+    os.chmod(path, 0o777)
+    func(path)
+
+
+def rmtree(path):
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=remove_readonly)
+    else:
+        shutil.rmtree(path, onerror=remove_readonly)
+
+
 def clone_repo():
     print("[1/3] Cloning CrossPoint repository...")
     if os.path.exists(REPO_DIR):
         print(f"  Removing existing '{REPO_DIR}'...")
-        shutil.rmtree(REPO_DIR)
+        rmtree(REPO_DIR)
     run(f"git clone --recursive {REPO_URL} {REPO_DIR}")
 
 
