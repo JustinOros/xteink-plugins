@@ -165,19 +165,21 @@ def patch_cross_point_settings_h(repo_dir):
     path    = find_first("CrossPointSettings.h", repo_dir)
     content = read_file(path)
 
-    if "BOOKERLY" in content:
+    if "bookerlyStyle" in content:
         print("  CrossPointSettings.h already patched, skipping.")
         return
 
-    content = content.replace(
-        '#include "activities/settings/SmallerFontsPlugin.h"',
-        '#include "activities/settings/SmallerFontsPlugin.h"\n#include "activities/settings/BookerlyPlugin.h"'
-    )
+    if '"activities/settings/BookerlyPlugin.h"' not in content:
+        content = content.replace(
+            '#include "activities/settings/SmallerFontsPlugin.h"',
+            '#include "activities/settings/SmallerFontsPlugin.h"\n#include "activities/settings/BookerlyPlugin.h"'
+        )
 
-    content = content.replace(
-        'enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, FONT_FAMILY_COUNT };',
-        'enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, BOOKERLY = 3, FONT_FAMILY_COUNT };'
-    )
+    if 'BOOKERLY = 3' not in content:
+        content = content.replace(
+            'enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, FONT_FAMILY_COUNT };',
+            'enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, BOOKERLY = 3, FONT_FAMILY_COUNT };'
+        )
 
     content = content.replace(
         '  uint8_t smallerFontsMode = 0;',
@@ -197,8 +199,8 @@ def patch_cross_point_settings_cpp(repo_dir, new_ids):
         return
 
     content = content.replace(
-        'readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);',
-        'readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);\n    readAndValidate(inputFile, bookerlyStyle, 4);'
+        'readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);\n    if (++settingsRead >= fileSettingsCount) break;',
+        'readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);\n    if (++settingsRead >= fileSettingsCount) break;\n    readAndValidate(inputFile, bookerlyStyle, 4);\n    if (++settingsRead >= fileSettingsCount) break;'
     )
 
     content = content.replace(
@@ -206,26 +208,26 @@ def patch_cross_point_settings_cpp(repo_dir, new_ids):
         '    case OPENDYSLEXIC:\n      switch (lineSpacing) {\n        case TIGHT:\n          return 0.90f;\n        case NORMAL:\n        default:\n          return 0.95f;\n        case WIDE:\n          return 1.0f;\n      }\n    case BOOKERLY:\n      switch (lineSpacing) {\n        case TIGHT:\n          return 0.95f;\n        case NORMAL:\n        default:\n          return 1.0f;\n        case WIDE:\n          return 1.1f;\n      }\n  }\n}\n\nunsigned long'
     )
 
-    bookerly_font_id_case = '    case BOOKERLY:\n'
-    sizes = [8, 10, 12, 14, 16, 18]
-    font_sizes = ['SMALL', 'MEDIUM', 'LARGE', 'EXTRA_LARGE']
-    size_map = {
-        'SMALL':       sizes[0],
-        'MEDIUM':      sizes[1],
-        'LARGE':       sizes[2],
-        'EXTRA_LARGE': sizes[3],
-    }
-    bookerly_font_id_case += '      switch (fontSize) {\n'
-    bookerly_font_id_case += f'        case SMALL:\n          return resolve(BOOKERLY_{sizes[0]}_FONT_ID);\n'
-    bookerly_font_id_case += f'        case MEDIUM:\n        default:\n          return resolve(BOOKERLY_{sizes[1]}_FONT_ID);\n'
-    bookerly_font_id_case += f'        case LARGE:\n          return resolve(BOOKERLY_{sizes[2]}_FONT_ID);\n'
-    bookerly_font_id_case += f'        case EXTRA_LARGE:\n          return resolve(BOOKERLY_{sizes[3]}_FONT_ID);\n'
-    bookerly_font_id_case += '      }\n'
+    bookerly_case = (
+        '    case BOOKERLY:\n'
+        '      switch (fontSize) {\n'
+        '        case SMALL:\n'
+        '          return resolve(BOOKERLY_8_FONT_ID);\n'
+        '        case MEDIUM:\n'
+        '        default:\n'
+        '          return resolve(BOOKERLY_10_FONT_ID);\n'
+        '        case LARGE:\n'
+        '          return resolve(BOOKERLY_12_FONT_ID);\n'
+        '        case EXTRA_LARGE:\n'
+        '          return resolve(BOOKERLY_14_FONT_ID);\n'
+        '      }\n'
+    )
 
     content = content.replace(
-        '  }\n}\n',
-        '  ' + bookerly_font_id_case + '  }\n}\n',
-        1
+        '        case EXTRA_LARGE:\n          return resolve(OPENDYSLEXIC_14_FONT_ID);\n      }\n  }\n}\n',
+        '        case EXTRA_LARGE:\n          return resolve(OPENDYSLEXIC_14_FONT_ID);\n      }\n'
+        + bookerly_case +
+        '  }\n}\n'
     )
 
     write_file(path, content)
