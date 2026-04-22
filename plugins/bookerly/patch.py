@@ -229,6 +229,29 @@ def patch_settings_list_h(repo_dir):
     print("  SettingsList.h patched.")
 
 
+def patch_settings_activity_h(repo_dir):
+    path    = find_first("SettingsActivity.h", repo_dir)
+    content = read_file(path)
+
+    if 'categoryCount = 5' in content:
+        print("  SettingsActivity.h already patched, skipping.")
+        return
+
+    content = content.replace(
+        'static constexpr int categoryCount = 4;',
+        'static constexpr int categoryCount = 5;'
+    )
+
+    if 'pluginsSettings' not in content:
+        content = content.replace(
+            '  std::vector<SettingInfo> systemSettings;',
+            '  std::vector<SettingInfo> systemSettings;\n  std::vector<SettingInfo> pluginsSettings;'
+        )
+
+    write_file(path, content)
+    print("  SettingsActivity.h patched.")
+
+
 def patch_settings_activity_cpp(repo_dir):
     path    = find_first("SettingsActivity.cpp", repo_dir)
     content = read_file(path)
@@ -241,18 +264,6 @@ def patch_settings_activity_cpp(repo_dir):
         '#include "DarkModePlugin.h"',
         '#include "DarkModePlugin.h"\n#include "BookerlyPlugin.h"'
     )
-
-    if 'categoryCount = 5' not in content:
-        content = content.replace(
-            'static constexpr int categoryCount = 4;',
-            'static constexpr int categoryCount = 5;'
-        )
-
-    if 'pluginsSettings' not in content:
-        content = content.replace(
-            '  std::vector<SettingInfo> systemSettings;',
-            '  std::vector<SettingInfo> systemSettings;\n  std::vector<SettingInfo> pluginsSettings;'
-        )
 
     if 'STR_NONE_OPT};' not in content:
         content = content.replace(
@@ -318,17 +329,16 @@ def patch_settings_activity_cpp(repo_dir):
             '    },'
         )
 
-    if 'fontFamily.*Bookerly\|"Bookerly"' not in content:
-        content = content.replace(
-            '          } else {\n'
-            '            valueText = I18N.get(setting.enumValues[value]);\n'
-            '          }',
-            '          } else if (setting.key && std::string(setting.key) == "fontFamily" && value == CrossPointSettings::BOOKERLY) {\n'
-            '            valueText = "Bookerly";\n'
-            '          } else {\n'
-            '            valueText = I18N.get(setting.enumValues[value]);\n'
-            '          }'
-        )
+    content = content.replace(
+        '          } else {\n'
+        '            valueText = I18N.get(setting.enumValues[value]);\n'
+        '          }',
+        '          } else if (setting.key && std::string(setting.key) == "fontFamily" && value == CrossPointSettings::BOOKERLY) {\n'
+        '            valueText = "Bookerly";\n'
+        '          } else {\n'
+        '            valueText = I18N.get(setting.enumValues[value]);\n'
+        '          }'
+    )
 
     write_file(path, content)
     print("  SettingsActivity.cpp patched.")
@@ -408,6 +418,9 @@ def patch(repo_dir: str):
 
     print("  Patching SettingsList.h...")
     patch_settings_list_h(repo_dir)
+
+    print("  Patching SettingsActivity.h...")
+    patch_settings_activity_h(repo_dir)
 
     print("  Patching SettingsActivity.cpp...")
     patch_settings_activity_cpp(repo_dir)
