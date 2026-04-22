@@ -42,7 +42,7 @@ def generate_fonts(plugin_dir, repo_dir):
     )
 
     sizes  = [12, 14, 16, 18]
-    styles = ["Regular", "Bold", "Italic", "BoldItalic"]
+    styles = ["Regular"]
 
     for size in sizes:
         for style in styles:
@@ -72,12 +72,12 @@ def generate_fonts(plugin_dir, repo_dir):
 
 def compute_font_ids(fonts_dir):
     ids = {}
-    sizes  = [12, 14, 16, 18]
-    suffixes = ["regular", "bold", "italic", "bolditalic"]
+    sizes = [12, 14, 16, 18]
     for size in sizes:
-        paths = [os.path.join(fonts_dir, f"bookerly_{size}_{s}.h") for s in suffixes]
-        if all(os.path.exists(p) for p in paths):
-            ids[f"BOOKERLY_{size}_FONT_ID"] = font_id_from_files(paths)
+        path = os.path.join(fonts_dir, f"bookerly_{size}_regular.h")
+        if os.path.exists(path):
+            h = hashlib.sha256(open(path, "rb").read()).hexdigest()
+            ids[f"BOOKERLY_{size}_FONT_ID"] = int(h, 16) % (2 ** 32) - (2 ** 31)
     return ids
 
 
@@ -104,17 +104,15 @@ def patch_all_h(repo_dir, new_ids):
 
     added = 0
     sizes  = [12, 14, 16, 18]
-    suffixes = ["bold", "bolditalic", "italic", "regular"]
     for size in sizes:
         key = f"BOOKERLY_{size}_FONT_ID"
         if key not in new_ids:
             continue
-        for suffix in suffixes:
-            fname = f"bookerly_{size}_{suffix}"
-            inc   = f'#include <builtinFonts/{fname}.h>'
-            if inc not in content:
-                content += inc + "\n"
-                added += 1
+        fname = f"bookerly_{size}_regular"
+        inc   = f'#include <builtinFonts/{fname}.h>'
+        if inc not in content:
+            content += inc + "\n"
+            added += 1
 
     if added:
         write_file(path, content)
@@ -140,10 +138,7 @@ def patch_main_cpp(repo_dir, new_ids):
             continue
         decl_lines += [
             f'EpdFont {varbase}RegularFont(&bookerly_{size}_regular);',
-            f'EpdFont {varbase}BoldFont(&bookerly_{size}_bold);',
-            f'EpdFont {varbase}ItalicFont(&bookerly_{size}_italic);',
-            f'EpdFont {varbase}BoldItalicFont(&bookerly_{size}_bolditalic);',
-            f'EpdFontFamily {varbase}FontFamily(&{varbase}RegularFont, &{varbase}BoldFont, &{varbase}ItalicFont, &{varbase}BoldItalicFont);',
+            f'EpdFontFamily {varbase}FontFamily(&{varbase}RegularFont, &{varbase}RegularFont, &{varbase}RegularFont, &{varbase}RegularFont);',
         ]
         insert_lines.append(f'  renderer.insertFont({key}, {varbase}FontFamily);')
 
@@ -158,14 +153,14 @@ def patch_main_cpp(repo_dir, new_ids):
     content = content.replace(anchor_insert, "\n".join(insert_lines) + "\n" + anchor_insert, 1)
 
     write_file(path, content)
-    print(f"  main.cpp: added {len(decl_lines) // 5} font families.")
+    print(f"  main.cpp: added {len(decl_lines) // 2} font families.")
 
 
 def patch_cross_point_settings_h(repo_dir):
     path    = find_first("CrossPointSettings.h", repo_dir)
     content = read_file(path)
 
-    if "bookerlyStyle" in content:
+    if "BOOKERLY = 3" in content:
         print("  CrossPointSettings.h already patched, skipping.")
         return
 
@@ -181,17 +176,7 @@ def patch_cross_point_settings_h(repo_dir):
             'enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, BOOKERLY = 3, FONT_FAMILY_COUNT };'
         )
 
-    if 'uint8_t bookerlyStyle' not in content:
-        anchor = None
-        for candidate in [
-            '  uint8_t smallerFontsMode = 0;',
-            '  uint8_t imageRendering = IMAGES_DISPLAY;',
-        ]:
-            if candidate in content:
-                anchor = candidate
-                break
-        if anchor:
-            content = content.replace(anchor, anchor + '\n  uint8_t bookerlyStyle = 0;')
+
 
     write_file(path, content)
     print("  CrossPointSettings.h patched.")
@@ -205,10 +190,6 @@ def patch_cross_point_settings_cpp(repo_dir, new_ids):
         print("  CrossPointSettings.cpp already patched, skipping.")
         return
 
-    content = content.replace(
-        'readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);\n    if (++settingsRead >= fileSettingsCount) break;',
-        'readAndValidate(inputFile, fontFamily, FONT_FAMILY_COUNT);\n    if (++settingsRead >= fileSettingsCount) break;\n    readAndValidate(inputFile, bookerlyStyle, 4);\n    if (++settingsRead >= fileSettingsCount) break;'
-    )
 
     content = content.replace(
         '    case OPENDYSLEXIC:\n      switch (lineSpacing) {\n        case TIGHT:\n          return 0.90f;\n        case NORMAL:\n        default:\n          return 0.95f;\n        case WIDE:\n          return 1.0f;\n      }\n  }\n}\n\nunsigned long',
@@ -217,17 +198,7 @@ def patch_cross_point_settings_cpp(repo_dir, new_ids):
 
     bookerly_case = (
         '    case BOOKERLY:\n'
-        '      switch (fontSize) {\n'
-        '        case SMALL:\n'
-        '          return resolve(BOOKERLY_12_FONT_ID);\n'
-        '        case MEDIUM:\n'
-        '        default:\n'
-        '          return resolve(BOOKERLY_14_FONT_ID);\n'
-        '        case LARGE:\n'
-        '          return resolve(BOOKERLY_16_FONT_ID);\n'
-        '        case EXTRA_LARGE:\n'
-        '          return resolve(BOOKERLY_18_FONT_ID);\n'
-        '      }\n'
+        '      return resolve(BOOKERLY_12_FONT_ID);\n'
     )
 
     content = content.replace(
@@ -262,7 +233,7 @@ def patch_settings_activity_cpp(repo_dir):
     path    = find_first("SettingsActivity.cpp", repo_dir)
     content = read_file(path)
 
-    if "bookerlyStyle" in content:
+    if "BookerlyPlugin" in content:
         print("  SettingsActivity.cpp already patched, skipping.")
         return
 
@@ -271,53 +242,93 @@ def patch_settings_activity_cpp(repo_dir):
         '#include "DarkModePlugin.h"\n#include "BookerlyPlugin.h"'
     )
 
-    content = content.replace(
-        '  pluginsSettings.push_back(SettingInfo::Enum(\n'
-        '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
-        '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
-        '  ));\n',
-        '  pluginsSettings.push_back(SettingInfo::Enum(\n'
-        '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
-        '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
-        '  ));\n'
-        '  pluginsSettings.push_back(SettingInfo::Enum(\n'
-        '    StrId::STR_NONE_OPT, &CrossPointSettings::bookerlyStyle,\n'
-        '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "bookerlyStyle"\n'
-        '  ));\n'
-    )
+    if 'categoryCount = 5' not in content:
+        content = content.replace(
+            'static constexpr int categoryCount = 4;',
+            'static constexpr int categoryCount = 5;'
+        )
 
-    content = content.replace(
-        '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n',
-        '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n'
-        '        if (s.key && std::string(s.key) == "bookerlyStyle") return "Bookerly Font";\n'
-    )
+    if 'pluginsSettings' not in content:
+        content = content.replace(
+            '  std::vector<SettingInfo> systemSettings;',
+            '  std::vector<SettingInfo> systemSettings;\n  std::vector<SettingInfo> pluginsSettings;'
+        )
 
-    content = content.replace(
-        '          } else if (setting.key && std::string(setting.key) == "smallerFontsMode") {\n'
-        '            valueText = SmallerFontsPlugin::modeName(static_cast<SmallerFontsMode>(value));\n'
-        '          } else {\n',
-        '          } else if (setting.key && std::string(setting.key) == "smallerFontsMode") {\n'
-        '            valueText = SmallerFontsPlugin::modeName(static_cast<SmallerFontsMode>(value));\n'
-        '          } else if (setting.key && std::string(setting.key) == "bookerlyStyle") {\n'
-        '            valueText = BookerlyPlugin::styleName(static_cast<BookerlyStyle>(value));\n'
-        '          } else {\n'
-    )
+    if 'STR_NONE_OPT};' not in content:
+        content = content.replace(
+            'const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,\n'
+            '                                                              StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM};',
+            'const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,\n'
+            '                                                              StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM,\n'
+            '                                                              StrId::STR_NONE_OPT};'
+        )
 
-    content = content.replace(
-        '        if (s.key && std::string(s.key) == "fontFamily") return "Bookerly";\n',
-        ''
-    )
+    if 'pluginsSettings.clear();' not in content:
+        content = content.replace(
+            '  systemSettings.clear();',
+            '  systemSettings.clear();\n  pluginsSettings.clear();'
+        )
 
-    content = content.replace(
-        '      return std::string(I18N.get(settings[index].nameId));\n'
-        '    },',
-        '      if (settings[index].key && std::string(settings[index].key) == "fontFamily") {\n'
-        '        const uint8_t val = SETTINGS.*(settings[index].valuePtr);\n'
-        '        if (val == CrossPointSettings::BOOKERLY) return std::string(I18N.get(settings[index].nameId)) + " (Bookerly)";\n'
-        '      }\n'
-        '      return std::string(I18N.get(settings[index].nameId));\n'
-        '    },'
-    )
+    if 'case 4:\n        currentSettings = &pluginsSettings;' not in content:
+        content = content.replace(
+            '      case 3:\n        currentSettings = &systemSettings;\n        break;',
+            '      case 3:\n        currentSettings = &systemSettings;\n        break;\n'
+            '      case 4:\n        currentSettings = &pluginsSettings;\n        break;'
+        )
+
+    if '"Plugins"' not in content:
+        content = content.replace(
+            '  std::vector<TabInfo> tabs;\n'
+            '  tabs.reserve(categoryCount);\n'
+            '  for (int i = 0; i < categoryCount; i++) {\n'
+            '    tabs.push_back({I18N.get(categoryNames[i]), selectedCategoryIndex == i});\n'
+            '  }',
+            '  std::vector<TabInfo> tabs;\n'
+            '  tabs.reserve(categoryCount);\n'
+            '  for (int i = 0; i < categoryCount; i++) {\n'
+            '    const char* tabLabel = (i == 4) ? "Plugins" : I18N.get(categoryNames[i]);\n'
+            '    tabs.push_back({tabLabel, selectedCategoryIndex == i});\n'
+            '  }'
+        )
+
+    if 'nextCatLabel' not in content:
+        content = content.replace(
+            '  const auto confirmLabel = (selectedSettingIndex == 0)\n'
+            '                                ? I18N.get(categoryNames[(selectedCategoryIndex + 1) % categoryCount])\n'
+            '                                : tr(STR_TOGGLE);',
+            '  const int nextCatIndex = (selectedCategoryIndex + 1) % categoryCount;\n'
+            '  const char* nextCatLabel = (nextCatIndex == 4) ? "Plugins" : I18N.get(categoryNames[nextCatIndex]);\n'
+            '  const auto confirmLabel = (selectedSettingIndex == 0) ? nextCatLabel : tr(STR_TOGGLE);'
+        )
+
+    if '"Bookerly"' not in content:
+        content = content.replace(
+            '    [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); },',
+            '    [&settings, this](int index) -> std::string {\n'
+            '      if (settings[index].key && std::string(settings[index].key) == "fontFamily") {\n'
+            '        const uint8_t val = SETTINGS.*(settings[index].valuePtr);\n'
+            '        if (val == CrossPointSettings::BOOKERLY) return "Bookerly";\n'
+            '      }\n'
+            '      if (selectedCategoryIndex == 4) {\n'
+            '        const auto& s = settings[index];\n'
+            '        if (s.key && std::string(s.key) == "darkModeState") return "Dark Mode";\n'
+            '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n'
+            '      }\n'
+            '      return std::string(I18N.get(settings[index].nameId));\n'
+            '    },'
+        )
+
+    if 'fontFamily.*Bookerly\|"Bookerly"' not in content:
+        content = content.replace(
+            '          } else {\n'
+            '            valueText = I18N.get(setting.enumValues[value]);\n'
+            '          }',
+            '          } else if (setting.key && std::string(setting.key) == "fontFamily" && value == CrossPointSettings::BOOKERLY) {\n'
+            '            valueText = "Bookerly";\n'
+            '          } else {\n'
+            '            valueText = I18N.get(setting.enumValues[value]);\n'
+            '          }'
+        )
 
     write_file(path, content)
     print("  SettingsActivity.cpp patched.")
@@ -327,7 +338,7 @@ def patch_web_server(repo_dir):
     path    = find_first("CrossPointWebServer.cpp", repo_dir)
     content = read_file(path)
 
-    if "bookerlyStyle" in content:
+    if '"Bookerly"' in content:
         print("  CrossPointWebServer.cpp already patched, skipping.")
         return
 
@@ -340,9 +351,6 @@ def patch_web_server(repo_dir):
         '      } else if (strcmp(s.key, "smallerFontsMode") == 0) {\n'
         '        doc["name"] = "Smaller Fonts";\n'
         '        doc["category"] = "Plugins";\n'
-        '      } else if (strcmp(s.key, "bookerlyStyle") == 0) {\n'
-        '        doc["name"] = "Bookerly Font";\n'
-        '        doc["category"] = "Plugins";\n'
         '      } else if (strcmp(s.key, "fontFamily") == 0) {\n'
         '        JsonArray opts = doc["options"].to<JsonArray>();\n'
         '        opts.add("Noto Serif");\n'
@@ -351,29 +359,6 @@ def patch_web_server(repo_dir):
         '        opts.add("Bookerly");\n'
         '      }\n'
         '    }\n'
-    )
-
-    content = content.replace(
-        '          } else if (strcmp(s.key, "smallerFontsMode") == 0) {\n'
-        '            JsonArray opts = doc["options"].to<JsonArray>();\n'
-        '            opts.add("Disabled");\n'
-        '            opts.add("Smaller");\n'
-        '            opts.add("Smallest");\n'
-        '          }\n'
-        '        }\n',
-        '          } else if (strcmp(s.key, "smallerFontsMode") == 0) {\n'
-        '            JsonArray opts = doc["options"].to<JsonArray>();\n'
-        '            opts.add("Disabled");\n'
-        '            opts.add("Smaller");\n'
-        '            opts.add("Smallest");\n'
-        '          } else if (strcmp(s.key, "bookerlyStyle") == 0) {\n'
-        '            JsonArray opts = doc["options"].to<JsonArray>();\n'
-        '            opts.add("Regular");\n'
-        '            opts.add("Italic");\n'
-        '            opts.add("Bold");\n'
-        '            opts.add("Bold Italic");\n'
-        '          }\n'
-        '        }\n'
     )
 
     write_file(path, content)
