@@ -238,23 +238,13 @@ def patch_settings_list_h(repo_dir):
     path    = find_first("SettingsList.h", repo_dir)
     content = read_file(path)
 
-    if "Bookerly" in content or "bookerlyStyle" in content:
+    if 'STR_NONE_OPT}, "fontFamily"' in content:
         print("  SettingsList.h already patched, skipping.")
         return
 
     content = content.replace(
         '{StrId::STR_NOTO_SERIF, StrId::STR_NOTO_SANS, StrId::STR_OPEN_DYSLEXIC}, "fontFamily"',
         '{StrId::STR_NOTO_SERIF, StrId::STR_NOTO_SANS, StrId::STR_OPEN_DYSLEXIC, StrId::STR_NONE_OPT}, "fontFamily"'
-    )
-
-    entry = (
-        '      SettingInfo::Enum(StrId::STR_NONE_OPT, &CrossPointSettings::bookerlyStyle,\n'
-        '                        {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "bookerlyStyle"),\n'
-    )
-
-    content = content.replace(
-        '  };\n  return list;\n}\n',
-        entry + '  };\n  return list;\n}\n'
     )
 
     write_file(path, content)
