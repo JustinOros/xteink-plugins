@@ -4,8 +4,6 @@ import os
 import sys
 import glob
 import shutil
-import hashlib
-import subprocess
 
 
 def read_file(path):
@@ -21,161 +19,6 @@ def find_first(filename, repo_dir):
     if not results:
         sys.exit(f"ERROR: Could not locate {filename} in {repo_dir}")
     return results[0]
-
-def font_id_from_files(paths):
-    total = 0
-    for p in paths:
-        h = hashlib.sha256(open(p, "rb").read()).hexdigest()
-        total += int(h, 16)
-    return total % (2 ** 32) - (2 ** 31)
-
-
-def generate_fonts(repo_dir):
-    scripts_dir   = os.path.join(repo_dir, "lib", "EpdFont", "scripts")
-    fonts_dir     = os.path.join(repo_dir, "lib", "EpdFont", "builtinFonts")
-    source_dir    = os.path.join(fonts_dir, "source")
-    fontconvert   = os.path.join(scripts_dir, "fontconvert.py")
-
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "freetype-py==2.5.1", "fonttools", "--break-system-packages", "-q"],
-        check=True
-    )
-
-    new_fonts = [
-        ("bookerly", 8,  "Bookerly", "ttf", ["Regular", "Bold", "Italic", "BoldItalic"]),
-        ("bookerly", 10, "Bookerly", "ttf", ["Regular", "Bold", "Italic", "BoldItalic"]),
-    ]
-
-    generated = []
-    for family, size, folder, ext, styles in new_fonts:
-        for style in styles:
-            fname    = f"{family}_{size}_{style.lower()}"
-            out_path = os.path.join(fonts_dir, f"{fname}.h")
-            if os.path.exists(out_path):
-                print(f"    already exists: {fname}.h")
-                generated.append((family, size, style, out_path))
-                continue
-            src_path = os.path.join(source_dir, folder, f"{folder}-{style}.{ext}")
-            extra = ["--2bit", "--compress"] if family != "ubuntu" else []
-            with open(out_path, "w") as f:
-                result = subprocess.run(
-                    [sys.executable, fontconvert, fname, str(size), src_path] + extra,
-                    capture_output=True, text=True
-                )
-                if result.returncode != 0:
-                    print(f"    ERROR generating {fname}: {result.stderr[:200]}")
-                    if os.path.exists(out_path):
-                        os.remove(out_path)
-                    continue
-                if not result.stdout.strip():
-                    print(f"    ERROR: {fname} generated empty output")
-                    if os.path.exists(out_path):
-                        os.remove(out_path)
-                    continue
-                f.write(result.stdout)
-            print(f"    ✓ generated {fname}.h")
-            generated.append((family, size, style, out_path))
-
-    return fonts_dir
-
-
-def compute_new_font_ids(fonts_dir):
-    ids = {}
-
-    def fid(name, size, suffixes):
-        paths = [os.path.join(fonts_dir, f"{name}_{size}_{s}.h") for s in suffixes]
-        if all(os.path.exists(p) for p in paths):
-            ids[f"{name.upper()}_{size}_FONT_ID"] = font_id_from_files(paths)
-
-    fid("bookerly", 8,  ["regular", "bold", "italic", "bolditalic"])
-    fid("bookerly", 10, ["regular", "bold", "italic", "bolditalic"])
-
-    return ids
-
-
-def patch_font_ids_h(repo_dir, new_ids):
-    path    = find_first("fontIds.h", repo_dir)
-    content = read_file(path)
-
-    lines = []
-    for name, val in new_ids.items():
-        if name not in content:
-            lines.append(f"#define {name} ({val})")
-
-    if not lines:
-        print("  fontIds.h already patched, skipping.")
-        return
-
-    write_file(path, content.rstrip() + "\n" + "\n".join(lines) + "\n")
-    print(f"  fontIds.h: added {len(lines)} new font IDs.")
-
-
-def patch_all_h(repo_dir, new_ids):
-    path    = find_first("all.h", repo_dir)
-    content = read_file(path)
-
-    includes = {
-        "BOOKERLY_8_FONT_ID":  ["bookerly_8_bold", "bookerly_8_bolditalic", "bookerly_8_italic", "bookerly_8_regular"],
-        "BOOKERLY_10_FONT_ID": ["bookerly_10_bold", "bookerly_10_bolditalic", "bookerly_10_italic", "bookerly_10_regular"],
-    }
-
-    added = 0
-    for key, fnames in includes.items():
-        if key not in new_ids:
-            continue
-        for fname in fnames:
-            inc = f'#include <builtinFonts/{fname}.h>'
-            if inc not in content:
-                content += inc + "\n"
-                added += 1
-
-    if added:
-        write_file(path, content)
-        print(f"  all.h: added {added} includes.")
-    else:
-        print("  all.h already patched, skipping.")
-
-
-def patch_main_cpp(repo_dir, new_ids):
-    path    = find_first("main.cpp", repo_dir)
-    content = read_file(path)
-
-    font_defs = {
-        "BOOKERLY_8_FONT_ID":  ("bookerly", 8,  True),
-        "BOOKERLY_10_FONT_ID": ("bookerly", 10, True),
-    }
-
-    decl_lines = []
-    insert_lines = []
-
-    for key, (family, size, has_styles) in font_defs.items():
-        if key not in new_ids:
-            continue
-        varbase = f"{family}{size}"
-        if f"EpdFontFamily {varbase}FontFamily" in content:
-            continue
-
-        decl_lines += [
-            f'EpdFont {varbase}RegularFont(&{family}_{size}_regular);',
-            f'EpdFont {varbase}BoldFont(&{family}_{size}_bold);',
-            f'EpdFont {varbase}ItalicFont(&{family}_{size}_italic);',
-            f'EpdFont {varbase}BoldItalicFont(&{family}_{size}_bolditalic);',
-            f'EpdFontFamily {varbase}FontFamily(&{varbase}RegularFont, &{varbase}BoldFont, &{varbase}ItalicFont, &{varbase}BoldItalicFont);',
-        ]
-        insert_lines.append(f'  renderer.insertFont({key}, {varbase}FontFamily);')
-
-    if not decl_lines:
-        print("  main.cpp already patched, skipping.")
-        return
-
-    anchor_decl = '#ifndef OMIT_FONTS'
-    content = content.replace(anchor_decl, "\n".join(decl_lines) + "\n" + anchor_decl, 1)
-
-    anchor_insert = '  renderer.insertFont(UI_10_FONT_ID, ui10FontFamily);'
-    content = content.replace(anchor_insert, "\n".join(insert_lines) + "\n" + anchor_insert, 1)
-
-    write_file(path, content)
-    print(f"  main.cpp: added {len(decl_lines)//5} font families.")
 
 
 def copy_plugin_sources(plugin_dir, repo_dir):
@@ -225,7 +68,7 @@ def patch_cross_point_settings_cpp(repo_dir):
         'int CrossPointSettings::getReaderFontId() const {',
         'int CrossPointSettings::getReaderFontId() const {\n  auto resolve = [this](int baseId) {\n    return SmallerFontsPlugin::resolveReaderFontId(baseId, static_cast<SmallerFontsMode>(smallerFontsMode));\n  };\n'
     )
-    for name in ["BOOKERLY_12", "BOOKERLY_14", "BOOKERLY_16", "BOOKERLY_18",
+    for name in ["NOTOSERIF_12", "NOTOSERIF_14", "NOTOSERIF_16", "NOTOSERIF_18",
                  "NOTOSANS_12", "NOTOSANS_14", "NOTOSANS_16", "NOTOSANS_18",
                  "OPENDYSLEXIC_8", "OPENDYSLEXIC_10", "OPENDYSLEXIC_12", "OPENDYSLEXIC_14"]:
         content = content.replace(f'return {name}_FONT_ID;', f'return resolve({name}_FONT_ID);')
@@ -498,23 +341,6 @@ def patch(repo_dir: str):
 
     print("  Copying plugin sources...")
     copy_plugin_sources(plugin_dir, repo_dir)
-
-    print("  Generating smaller font files...")
-    fonts_dir = generate_fonts(repo_dir)
-
-    print("  Computing new font IDs...")
-    new_ids = compute_new_font_ids(fonts_dir)
-    for k, v in new_ids.items():
-        print(f"    {k} = {v}")
-
-    print("  Patching fontIds.h...")
-    patch_font_ids_h(repo_dir, new_ids)
-
-    print("  Patching all.h...")
-    patch_all_h(repo_dir, new_ids)
-
-    print("  Patching main.cpp...")
-    patch_main_cpp(repo_dir, new_ids)
 
     print("  Patching CrossPointSettings.h...")
     patch_cross_point_settings_h(repo_dir)

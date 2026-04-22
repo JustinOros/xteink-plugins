@@ -1,2 +1,3 @@
 platformio
 pyserial
+freetype-py

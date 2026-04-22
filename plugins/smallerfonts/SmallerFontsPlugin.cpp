@@ -14,21 +14,21 @@ const char* modeName(SmallerFontsMode mode) {
 int resolveReaderFontId(int baseFontId, SmallerFontsMode mode) {
     if (mode == SmallerFontsMode::MODE_OFF) return baseFontId;
 
-    if (baseFontId == BOOKERLY_12_FONT_ID) {
-        if (mode == SmallerFontsMode::SMALLER)  return BOOKERLY_10_FONT_ID;
-        if (mode == SmallerFontsMode::SMALLEST) return BOOKERLY_8_FONT_ID;
+    if (baseFontId == NOTOSERIF_12_FONT_ID) {
+        if (mode == SmallerFontsMode::SMALLER)  return NOTOSERIF_10_FONT_ID;
+        if (mode == SmallerFontsMode::SMALLEST) return NOTOSERIF_8_FONT_ID;
     }
-    if (baseFontId == BOOKERLY_14_FONT_ID) {
-        if (mode == SmallerFontsMode::SMALLER)  return BOOKERLY_12_FONT_ID;
-        if (mode == SmallerFontsMode::SMALLEST) return BOOKERLY_10_FONT_ID;
+    if (baseFontId == NOTOSERIF_14_FONT_ID) {
+        if (mode == SmallerFontsMode::SMALLER)  return NOTOSERIF_12_FONT_ID;
+        if (mode == SmallerFontsMode::SMALLEST) return NOTOSERIF_10_FONT_ID;
     }
-    if (baseFontId == BOOKERLY_16_FONT_ID) {
-        if (mode == SmallerFontsMode::SMALLER)  return BOOKERLY_14_FONT_ID;
-        if (mode == SmallerFontsMode::SMALLEST) return BOOKERLY_12_FONT_ID;
+    if (baseFontId == NOTOSERIF_16_FONT_ID) {
+        if (mode == SmallerFontsMode::SMALLER)  return NOTOSERIF_14_FONT_ID;
+        if (mode == SmallerFontsMode::SMALLEST) return NOTOSERIF_12_FONT_ID;
     }
-    if (baseFontId == BOOKERLY_18_FONT_ID) {
-        if (mode == SmallerFontsMode::SMALLER)  return BOOKERLY_16_FONT_ID;
-        if (mode == SmallerFontsMode::SMALLEST) return BOOKERLY_14_FONT_ID;
+    if (baseFontId == NOTOSERIF_18_FONT_ID) {
+        if (mode == SmallerFontsMode::SMALLER)  return NOTOSERIF_16_FONT_ID;
+        if (mode == SmallerFontsMode::SMALLEST) return NOTOSERIF_14_FONT_ID;
     }
 
     if (baseFontId == NOTOSANS_12_FONT_ID) return NOTOSANS_12_FONT_ID;
