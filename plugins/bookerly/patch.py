@@ -41,7 +41,7 @@ def generate_fonts(plugin_dir, repo_dir):
         check=True
     )
 
-    sizes  = [8, 10, 12, 14, 16, 18]
+    sizes  = [12, 14, 16, 18]
     styles = ["Regular", "Bold", "Italic", "BoldItalic"]
 
     for size in sizes:
@@ -72,7 +72,7 @@ def generate_fonts(plugin_dir, repo_dir):
 
 def compute_font_ids(fonts_dir):
     ids = {}
-    sizes  = [8, 10, 12, 14, 16, 18]
+    sizes  = [12, 14, 16, 18]
     suffixes = ["regular", "bold", "italic", "bolditalic"]
     for size in sizes:
         paths = [os.path.join(fonts_dir, f"bookerly_{size}_{s}.h") for s in suffixes]
@@ -103,7 +103,7 @@ def patch_all_h(repo_dir, new_ids):
     content = read_file(path)
 
     added = 0
-    sizes  = [8, 10, 12, 14, 16, 18]
+    sizes  = [12, 14, 16, 18]
     suffixes = ["bold", "bolditalic", "italic", "regular"]
     for size in sizes:
         key = f"BOOKERLY_{size}_FONT_ID"
@@ -219,14 +219,14 @@ def patch_cross_point_settings_cpp(repo_dir, new_ids):
         '    case BOOKERLY:\n'
         '      switch (fontSize) {\n'
         '        case SMALL:\n'
-        '          return resolve(BOOKERLY_8_FONT_ID);\n'
+        '          return resolve(BOOKERLY_12_FONT_ID);\n'
         '        case MEDIUM:\n'
         '        default:\n'
-        '          return resolve(BOOKERLY_10_FONT_ID);\n'
-        '        case LARGE:\n'
-        '          return resolve(BOOKERLY_12_FONT_ID);\n'
-        '        case EXTRA_LARGE:\n'
         '          return resolve(BOOKERLY_14_FONT_ID);\n'
+        '        case LARGE:\n'
+        '          return resolve(BOOKERLY_16_FONT_ID);\n'
+        '        case EXTRA_LARGE:\n'
+        '          return resolve(BOOKERLY_18_FONT_ID);\n'
         '      }\n'
     )
 
