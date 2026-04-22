@@ -181,10 +181,17 @@ def patch_cross_point_settings_h(repo_dir):
             'enum FONT_FAMILY { NOTOSERIF = 0, NOTOSANS = 1, OPENDYSLEXIC = 2, BOOKERLY = 3, FONT_FAMILY_COUNT };'
         )
 
-    content = content.replace(
-        '  uint8_t smallerFontsMode = 0;',
-        '  uint8_t smallerFontsMode = 0;\n  uint8_t bookerlyStyle = 0;'
-    )
+    if 'uint8_t bookerlyStyle' not in content:
+        anchor = None
+        for candidate in [
+            '  uint8_t smallerFontsMode = 0;',
+            '  uint8_t imageRendering = IMAGES_DISPLAY;',
+        ]:
+            if candidate in content:
+                anchor = candidate
+                break
+        if anchor:
+            content = content.replace(anchor, anchor + '\n  uint8_t bookerlyStyle = 0;')
 
     write_file(path, content)
     print("  CrossPointSettings.h patched.")
