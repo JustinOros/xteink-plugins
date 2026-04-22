@@ -37,11 +37,53 @@ def rmtree(path):
         shutil.rmtree(path, onerror=remove_readonly)
 
 
-def clone_repo():
-    print("[1/3] Cloning CrossPoint repository...")
+def get_remote_head_sha():
+    try:
+        result = subprocess.run(
+            f"git ls-remote {REPO_URL} HEAD",
+            shell=True, capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0 and result.stdout:
+            return result.stdout.split()[0]
+    except Exception:
+        pass
+    return None
+
+
+def get_local_head_sha():
+    try:
+        result = subprocess.run(
+            "git rev-parse HEAD",
+            shell=True, capture_output=True, text=True, cwd=REPO_DIR
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def clone_repo(force: bool = False):
+    print("[1/3] Preparing CrossPoint repository...")
+
+    if os.path.exists(REPO_DIR) and not force:
+        print("  Existing repo found, checking remote for updates...")
+        remote_sha = get_remote_head_sha()
+        local_sha  = get_local_head_sha()
+
+        if remote_sha and local_sha and remote_sha == local_sha:
+            print(f"  Already up to date ({local_sha[:8]}), skipping clone.")
+            return
+        elif remote_sha:
+            print(f"  Remote has changed ({remote_sha[:8]} vs local {(local_sha or 'unknown')[:8]}), re-cloning...")
+        else:
+            print("  Could not reach remote, re-using existing repo.")
+            return
+
     if os.path.exists(REPO_DIR):
         print(f"  Removing existing '{REPO_DIR}'...")
         rmtree(REPO_DIR)
+
     run(f"git clone --recursive {REPO_URL} {REPO_DIR}")
 
 
@@ -235,6 +277,11 @@ def parse_args():
         action="store_true",
         help="Auto-answer Y to all plugin install prompts",
     )
+    parser.add_argument(
+        "--reclone",
+        action="store_true",
+        help="Force re-clone of the CrossPoint repository even if it already exists",
+    )
     return parser.parse_args()
 
 
@@ -258,7 +305,7 @@ def main():
         print("  Aborted.")
         sys.exit(0)
     print()
-    clone_repo()
+    clone_repo(force=args.reclone)
     apply_plugins(yes_all=args.yes)
     build_and_flash(args.environment)
     print("\nDone.")
