@@ -14,13 +14,10 @@ const char* modeName(SmallerFontsMode mode) {
 int resolveReaderFontId(int baseFontId, SmallerFontsMode mode) {
     if (mode == SmallerFontsMode::MODE_OFF) return baseFontId;
 
-    if (baseFontId == NOTOSERIF_12_FONT_ID) {
-        if (mode == SmallerFontsMode::SMALLER)  return NOTOSERIF_10_FONT_ID;
-        if (mode == SmallerFontsMode::SMALLEST) return NOTOSERIF_8_FONT_ID;
-    }
+    if (baseFontId == NOTOSERIF_12_FONT_ID) return NOTOSERIF_12_FONT_ID;
     if (baseFontId == NOTOSERIF_14_FONT_ID) {
         if (mode == SmallerFontsMode::SMALLER)  return NOTOSERIF_12_FONT_ID;
-        if (mode == SmallerFontsMode::SMALLEST) return NOTOSERIF_10_FONT_ID;
+        if (mode == SmallerFontsMode::SMALLEST) return NOTOSERIF_12_FONT_ID;
     }
     if (baseFontId == NOTOSERIF_16_FONT_ID) {
         if (mode == SmallerFontsMode::SMALLER)  return NOTOSERIF_14_FONT_ID;
