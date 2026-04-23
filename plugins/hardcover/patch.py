@@ -269,21 +269,36 @@ def patch_settings_cpp(repo_dir):
 
     if 'Hardcover Progress' not in content:
         if 'selectedCategoryIndex == 4' in content:
-            # Lambda already patched by darkmode/smallerfonts - insert after last key check.
-            # Exact closing from real patched file:
+            # Lambda already patched by another plugin - insert before the closing return.
             closing = (
                 '      }\n'
                 '      return std::string(I18N.get(settings[index].nameId));\n'
                 '    }, nullptr, nullptr,'
             )
+            closing_bookerly = (
+                '        }\n'
+                '        return std::string(I18N.get(settings[index].nameId));\n'
+                '      }, nullptr, nullptr,'
+            )
             for last_key_line in [
                 '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n',
                 '        if (s.key && std::string(s.key) == "darkModeState") return "Dark Mode";\n',
+                '            s.action == SettingAction::GitHubSync) return "GitHub Sync";\n',
+                '            s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";\n',
             ]:
-                anchor = last_key_line + closing
-                if anchor in content:
-                    content = content.replace(anchor, last_key_line + hardcover_label_line + closing)
-                    break
+                for cl in [closing, closing_bookerly]:
+                    anchor = last_key_line + cl
+                    if anchor in content:
+                        content = content.replace(anchor, last_key_line + hardcover_label_line + cl)
+                        break
+                else:
+                    continue
+                break
+            else:
+                for cl in [closing, closing_bookerly]:
+                    if cl in content:
+                        content = content.replace(cl, hardcover_label_line + cl, 1)
+                        break
         else:
             # No other plugin has patched the lambda yet - create it from scratch.
             # Exact line from real unpatched file (6 leading spaces):
