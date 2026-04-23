@@ -118,10 +118,19 @@ def patch_setting_action_enum(repo_dir):
         print("  SettingAction enum already patched, skipping.")
         return
 
-    content = content.replace(
+    for anchor in [
         '  Language,\n};',
-        '  Language,\n  HardcoverSync,\n};'
-    )
+        '  BookerlyInstalled,\n};',
+        '  GitHubSync,\n  Language,\n};',
+        '  Language,\n  BookerlyInstalled,\n};',
+        '  GitHubSync,\n  Language,\n  BookerlyInstalled,\n};',
+    ]:
+        if anchor in content:
+            content = content.replace(anchor, anchor[:-2] + '  HardcoverSync,\n};')
+            break
+    else:
+        import re
+        content = re.sub(r'(\n};)', r'\n  HardcoverSync,\1', content, count=1)
 
     write_file(path, content)
     print("  SettingAction::HardcoverSync added.")
