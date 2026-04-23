@@ -43,14 +43,34 @@ def patch_cross_point_settings_h(repo_dir):
         print("  CrossPointSettings.h already patched, skipping.")
         return
 
-    content = content.replace(
+    for include_anchor in [
         '#pragma once\n#include <HalStorage.h>',
-        '#pragma once\n#include <HalStorage.h>\n#include "activities/settings/SmallerFontsPlugin.h"'
-    )
-    content = content.replace(
+        '#pragma once\n\n#include <HalStorage.h>',
+        '#pragma once',
+    ]:
+        if include_anchor in content and '"SmallerFontsPlugin.h"' not in content:
+            content = content.replace(
+                include_anchor,
+                include_anchor + '\n#include "activities/settings/SmallerFontsPlugin.h"',
+                1
+            )
+            break
+
+    for member_anchor in [
         '  uint8_t imageRendering = IMAGES_DISPLAY;',
-        '  uint8_t imageRendering = IMAGES_DISPLAY;\n  uint8_t smallerFontsMode = 0;'
-    )
+        '\tuint8_t imageRendering = IMAGES_DISPLAY;',
+        'uint8_t imageRendering = IMAGES_DISPLAY;',
+    ]:
+        if member_anchor in content:
+            content = content.replace(
+                member_anchor,
+                member_anchor + '\n  uint8_t smallerFontsMode = 0;',
+                1
+            )
+            break
+
+    if "smallerFontsMode" not in content:
+        sys.exit("ERROR: Could not add smallerFontsMode to CrossPointSettings.h — anchor not found")
 
     write_file(path, content)
     print("  CrossPointSettings.h patched.")
@@ -70,7 +90,8 @@ def patch_cross_point_settings_cpp(repo_dir):
     )
     for name in ["NOTOSERIF_12", "NOTOSERIF_14", "NOTOSERIF_16", "NOTOSERIF_18",
                  "NOTOSANS_12", "NOTOSANS_14", "NOTOSANS_16", "NOTOSANS_18",
-                 "OPENDYSLEXIC_8", "OPENDYSLEXIC_10", "OPENDYSLEXIC_12", "OPENDYSLEXIC_14"]:
+                 "OPENDYSLEXIC_8", "OPENDYSLEXIC_10", "OPENDYSLEXIC_12", "OPENDYSLEXIC_14",
+                 "BOOKERLY_12"]:
         content = content.replace(f'return {name}_FONT_ID;', f'return resolve({name}_FONT_ID);')
 
     write_file(path, content)
