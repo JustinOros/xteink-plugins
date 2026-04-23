@@ -52,6 +52,18 @@ Features:
 
 ---
 
+### Bookerly Font
+
+Adds the Bookerly font to your xteink device, available as a reader font option alongside the built-in Noto Serif, Noto Sans, and OpenDyslexic fonts.
+
+- Generates Bookerly at 12pt, 14pt, 16pt, and 18pt during install
+- Also generates 8pt and 10pt variants for use with the Smaller Fonts plugin
+- Selectable via Settings → Reader → Font
+
+Requires the Smaller Fonts plugin to be installed if you want to use Bookerly at sizes below 12pt.
+
+---
+
 ### Hardcover Sync
 
 Automatically syncs your reading progress between your xteink device and https://hardcover.app.
@@ -68,6 +80,24 @@ Requirements:
 - Active internet connection via WiFi
 - Hardcover account and API token
 - Books with embedded ISBN metadata
+
+---
+
+### GitHub Sync
+
+Syncs `.epub` files from a private GitHub repository to your device on boot.
+
+- Downloads new or updated books from your configured repo automatically on startup
+- Skips files already on the device that haven't changed
+- Configurable via Settings → Plugins → GitHub Sync (username, personal access token, repo, branch)
+- Credentials can also be pre-configured during install
+
+Requirements:
+- Active internet connection via WiFi
+- GitHub account with a repository containing your `.epub` files
+- Personal access token with read-only Contents access to the repo
+
+---
 
 ## Requirements
 
@@ -133,10 +163,17 @@ xteink-plugins/
     │   ├── LockscreenPlugin.h/.cpp
     │   ├── LockscreenSettingsPage.h/.cpp
     │   └── LockscreenActivity.h/.cpp
-    └── hardcover/
+    ├── bookerly/
+    │   ├── patch.py
+    │   └── BookerlyPlugin.h/.cpp
+    ├── hardcover/
+    │   ├── patch.py
+    │   ├── HardcoverPlugin.h/.cpp
+    │   └── HardcoverSyncActivity.h/.cpp
+    └── githubsync/
         ├── patch.py
-        ├── HardcoverPlugin.h/.cpp
-        └── HardcoverSyncActivity.h/.cpp
+        ├── GitHubSync.h/.cpp
+        └── GitHubSyncSettingsActivity.h/.cpp
 ```
 
 ## Troubleshooting
