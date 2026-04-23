@@ -326,7 +326,7 @@ def patch_settings_cpp(repo_dir):
             content = content.replace(old_lambda, new_lambda)
 
     # ---- Value text: "Sync" for the HardcoverSync action row ---------------
-    if '"Sync"' not in content:
+    if 'SettingAction::HardcoverSync) {\n          valueText = "Sync"' not in content:
         content = content.replace(
             '        if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {',
             '        if (setting.type == SettingType::ACTION &&\n'
