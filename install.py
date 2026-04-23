@@ -63,10 +63,10 @@ def get_local_head_sha():
     return None
 
 
-def clone_repo(force: bool = False):
+def clone_repo(force: bool = True):
     print("[1/3] Preparing CrossPoint repository...")
 
-    if os.path.exists(REPO_DIR) and not force:
+    if not force and os.path.exists(REPO_DIR):
         print("  Existing repo found, checking remote for updates...")
         remote_sha = get_remote_head_sha()
         local_sha  = get_local_head_sha()
@@ -278,9 +278,10 @@ def parse_args():
         help="Auto-answer Y to all plugin install prompts",
     )
     parser.add_argument(
-        "--reclone",
+        "--no-reclone",
         action="store_true",
-        help="Force re-clone of the CrossPoint repository even if it already exists",
+        dest="no_reclone",
+        help="Skip re-cloning if CrossPoint repo already exists and matches remote",
     )
     return parser.parse_args()
 
@@ -305,7 +306,7 @@ def main():
         print("  Aborted.")
         sys.exit(0)
     print()
-    clone_repo(force=args.reclone)
+    clone_repo(force=not args.no_reclone)
     apply_plugins(yes_all=args.yes)
     build_and_flash(args.environment)
     print("\nDone.")
