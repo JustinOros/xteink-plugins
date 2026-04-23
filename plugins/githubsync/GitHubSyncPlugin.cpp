@@ -1,13 +1,12 @@
 #include "GitHubSyncPlugin.h"
 
 #include <HTTPClient.h>
+#include <HalStorage.h>
 #include <Logging.h>
 #include <WiFi.h>
 #include <ArduinoJson.h>
-#include "SDCardManager.h"
 
 #include <string>
-#include <vector>
 
 #include "CrossPointSettings.h"
 
@@ -53,9 +52,8 @@ std::string shaFilePath(const std::string& filename) {
 }
 
 std::string loadLocalSha(const std::string& filename) {
-    auto& sd = SDCardManager::getInstance();
     FsFile f;
-    if (!sd.openFileForRead("GHS", shaFilePath(filename), f)) return "";
+    if (!Storage.openFileForRead("GHS", shaFilePath(filename).c_str(), f)) return "";
     char buf[41] = {};
     f.read(buf, sizeof(buf) - 1);
     f.close();
@@ -66,11 +64,10 @@ std::string loadLocalSha(const std::string& filename) {
 }
 
 void saveLocalSha(const std::string& filename, const std::string& sha) {
-    auto& sd = SDCardManager::getInstance();
-    sd.mkdir(GH_SHA_DIR);
+    Storage.mkdir(GH_SHA_DIR);
     FsFile f;
-    if (!sd.openFileForWrite("GHS", shaFilePath(filename), f)) return;
-    f.print(sha.c_str());
+    if (!Storage.openFileForWrite("GHS", shaFilePath(filename).c_str(), f)) return;
+    f.write(reinterpret_cast<const uint8_t*>(sha.c_str()), sha.size());
     f.close();
 }
 
@@ -90,9 +87,8 @@ bool downloadFile(const std::string& downloadUrl, const std::string& pat,
         return false;
     }
 
-    auto& sd = SDCardManager::getInstance();
     FsFile f;
-    if (!sd.openFileForWrite("GHS", destPath, f)) {
+    if (!Storage.openFileForWrite("GHS", destPath.c_str(), f)) {
         LOG_ERR("GHS", "Cannot open %s for write", destPath.c_str());
         http.end();
         return false;
@@ -107,7 +103,8 @@ bool downloadFile(const std::string& downloadUrl, const std::string& pat,
     while (http.connected() && (remaining > 0 || total == -1)) {
         size_t avail = stream->available();
         if (avail) {
-            size_t read = stream->readBytes(buf, min(avail, sizeof(buf)));
+            size_t toRead = avail < sizeof(buf) ? avail : sizeof(buf);
+            size_t read   = stream->readBytes(buf, toRead);
             f.write(buf, read);
             if (remaining > 0) remaining -= (int)read;
             lastData = millis();
@@ -141,8 +138,10 @@ bool syncContents(const RepoInfo& info, const std::string& pat) {
 
     int code = http.GET();
     LOG_INF("GHS", "Contents API HTTP %d", code);
-
-    if (code != 200) { http.end(); return false; }
+    if (code != 200) {
+        http.end();
+        return false;
+    }
 
     String body = http.getString();
     http.end();
@@ -154,7 +153,6 @@ bool syncContents(const RepoInfo& info, const std::string& pat) {
     }
 
     JsonArray files = doc.as<JsonArray>();
-    auto& sd = SDCardManager::getInstance();
 
     for (JsonObject file : files) {
         const char* type        = file["type"] | "";
@@ -174,7 +172,7 @@ bool syncContents(const RepoInfo& info, const std::string& pat) {
         std::string destPath = isSleep ? "/sleep.bmp" : "/" + n;
         std::string localSha = loadLocalSha(n);
 
-        if (localSha == sha && sd.exists(destPath.c_str())) {
+        if (localSha == std::string(sha) && Storage.exists(destPath.c_str())) {
             LOG_DBG("GHS", "Up to date: %s", name);
             continue;
         }
