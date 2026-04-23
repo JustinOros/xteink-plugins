@@ -196,9 +196,11 @@ def patch_cross_point_settings_cpp(repo_dir, new_ids):
         '    case OPENDYSLEXIC:\n      switch (lineSpacing) {\n        case TIGHT:\n          return 0.90f;\n        case NORMAL:\n        default:\n          return 0.95f;\n        case WIDE:\n          return 1.0f;\n      }\n    case BOOKERLY:\n      switch (lineSpacing) {\n        case TIGHT:\n          return 0.95f;\n        case NORMAL:\n        default:\n          return 1.0f;\n        case WIDE:\n          return 1.1f;\n      }\n  }\n}\n\nunsigned long'
     )
 
+    use_resolve = 'resolve' in content
+    bookerly_return = 'resolve(BOOKERLY_12_FONT_ID)' if use_resolve else 'BOOKERLY_12_FONT_ID'
     bookerly_case = (
         '    case BOOKERLY:\n'
-        '      return resolve(BOOKERLY_12_FONT_ID);\n'
+        f'      return {bookerly_return};\n'
     )
 
     anchor = None
