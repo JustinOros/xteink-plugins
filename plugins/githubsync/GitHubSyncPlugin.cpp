@@ -144,17 +144,14 @@ bool fetchTree(RepoInfo& info, const std::string& pat,
             continue;
         }
 
-        String body = http.getString();
-        http.end();
-
-        if (body.isEmpty()) {
-            LOG_ERR("GHS", "Empty response for branch %s", branches[i]);
-            continue;
-        }
+        WiFiClient* stream = http.getStreamPtr();
 
         JsonDocument doc;
-        if (deserializeJson(doc, body) != DeserializationError::Ok) {
-            LOG_ERR("GHS", "JSON parse error");
+        DeserializationError err = deserializeJson(doc, *stream);
+        http.end();
+
+        if (err != DeserializationError::Ok) {
+            LOG_ERR("GHS", "JSON parse error: %s", err.c_str());
             continue;
         }
 
