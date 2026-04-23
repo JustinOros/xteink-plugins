@@ -253,8 +253,8 @@ def patch_settings_activity_h(repo_dir):
         )
 
     content = content.replace(
-        '  HardcoverSync,\n};',
-        '  HardcoverSync,\n  BookerlyInstalled,\n};'
+        '  Language,\n};',
+        '  Language,\n  BookerlyInstalled,\n};'
     )
 
     write_file(path, content)
@@ -270,116 +270,91 @@ def patch_settings_activity_cpp(repo_dir):
         return
 
     content = content.replace(
-        '#include "DarkModePlugin.h"',
-        '#include "DarkModePlugin.h"\n#include "BookerlyPlugin.h"'
+        '#include "fontIds.h"',
+        '#include "fontIds.h"
+#include "BookerlyPlugin.h"'
     )
 
-    if 'STR_NONE_OPT};' not in content:
+    if 'pluginsSettings.push_back' not in content:
         content = content.replace(
-            'const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,\n'
-            '                                                              StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM};',
-            'const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,\n'
-            '                                                              StrId::STR_CAT_CONTROLS, StrId::STR_CAT_SYSTEM,\n'
-            '                                                              StrId::STR_NONE_OPT};'
+            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+',
+            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+'
+            '  pluginsSettings.push_back(SettingInfo::Action(
+'
+            '    StrId::STR_NONE_OPT, SettingAction::BookerlyInstalled
+'
+            '  ));
+'
         )
-
-    if 'pluginsSettings.clear();' not in content:
+    elif 'BookerlyInstalled' not in content:
         content = content.replace(
-            '  systemSettings.clear();',
-            '  systemSettings.clear();\n  pluginsSettings.clear();'
-        )
-
-    if 'case 4:\n        currentSettings = &pluginsSettings;' not in content:
-        content = content.replace(
-            '      case 3:\n        currentSettings = &systemSettings;\n        break;',
-            '      case 3:\n        currentSettings = &systemSettings;\n        break;\n'
-            '      case 4:\n        currentSettings = &pluginsSettings;\n        break;'
-        )
-
-    if '"Plugins"' not in content:
-        content = content.replace(
-            '  std::vector<TabInfo> tabs;\n'
-            '  tabs.reserve(categoryCount);\n'
-            '  for (int i = 0; i < categoryCount; i++) {\n'
-            '    tabs.push_back({I18N.get(categoryNames[i]), selectedCategoryIndex == i});\n'
-            '  }',
-            '  std::vector<TabInfo> tabs;\n'
-            '  tabs.reserve(categoryCount);\n'
-            '  for (int i = 0; i < categoryCount; i++) {\n'
-            '    const char* tabLabel = (i == 4) ? "Plugins" : I18N.get(categoryNames[i]);\n'
-            '    tabs.push_back({tabLabel, selectedCategoryIndex == i});\n'
-            '  }'
-        )
-
-    if 'nextCatLabel' not in content:
-        content = content.replace(
-            '  const auto confirmLabel = (selectedSettingIndex == 0)\n'
-            '                                ? I18N.get(categoryNames[(selectedCategoryIndex + 1) % categoryCount])\n'
-            '                                : tr(STR_TOGGLE);',
-            '  const int nextCatIndex = (selectedCategoryIndex + 1) % categoryCount;\n'
-            '  const char* nextCatLabel = (nextCatIndex == 4) ? "Plugins" : I18N.get(categoryNames[nextCatIndex]);\n'
-            '  const auto confirmLabel = (selectedSettingIndex == 0) ? nextCatLabel : tr(STR_TOGGLE);'
+            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+',
+            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
+'
+            '  pluginsSettings.push_back(SettingInfo::Action(
+'
+            '    StrId::STR_NONE_OPT, SettingAction::BookerlyInstalled
+'
+            '  ));
+'
         )
 
     if '"Bookerly Plugin"' not in content:
         content = content.replace(
-            '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n',
-            '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n'
-            '        if (s.type == SettingType::ACTION &&\n'
-            '            s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";\n'
-        )
-
-    if 'SettingAction::BookerlyInstalled' not in content:
-        content = content.replace(
-            '  pluginsSettings.push_back(SettingInfo::Enum(\n'
-            '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
-            '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
-            '  ));\n',
-            '  pluginsSettings.push_back(SettingInfo::Enum(\n'
-            '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
-            '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
-            '  ));\n'
-            '  pluginsSettings.push_back(SettingInfo::Action(\n'
-            '    StrId::STR_NONE_OPT, SettingAction::BookerlyInstalled\n'
-            '  ));\n'
-        )
-
-    if 'SettingAction::BookerlyInstalled' not in content or 'case SettingAction::BookerlyInstalled' not in content:
-        content = content.replace(
-            '      case SettingAction::None:\n'
-            '        // Do nothing\n'
-            '        break;',
-            '      case SettingAction::BookerlyInstalled:\n'
-            '        break;\n'
-            '      case SettingAction::None:\n'
-            '        // Do nothing\n'
-            '        break;'
+            '      [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); }, nullptr, nullptr,',
+            '      [&settings, this](int index) -> std::string {
+'
+            '        if (selectedCategoryIndex == 4) {
+'
+            '          const auto& s = settings[index];
+'
+            '          if (s.type == SettingType::ACTION && s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";
+'
+            '        }
+'
+            '        return std::string(I18N.get(settings[index].nameId));
+'
+            '      }, nullptr, nullptr,'
         )
 
     if '"Bookerly"' not in content:
         content = content.replace(
-            '          } else {\n'
-            '            valueText = I18N.get(setting.enumValues[value]);\n'
-            '          }',
-            '          } else if (setting.key && std::string(setting.key) == "fontFamily" && value == CrossPointSettings::BOOKERLY) {\n'
-            '            valueText = "Bookerly";\n'
-            '          } else {\n'
-            '            valueText = I18N.get(setting.enumValues[value]);\n'
-            '          }'
+            '          const uint8_t value = SETTINGS.*(setting.valuePtr);
+'
+            '          valueText = I18N.get(setting.enumValues[value]);
+',
+            '          const uint8_t value = SETTINGS.*(setting.valuePtr);
+'
+            '          if (setting.key && std::string(setting.key) == "fontFamily" && value == CrossPointSettings::BOOKERLY) {
+'
+            '            valueText = "Bookerly";
+'
+            '          } else {
+'
+            '            valueText = I18N.get(setting.enumValues[value]);
+'
+            '          }
+'
         )
 
     if '"Installed"' not in content:
         content = content.replace(
-            '        } else if (setting.type == SettingType::ACTION &&\n'
-            '            setting.action == SettingAction::HardcoverSync) {\n'
-            '          valueText = "Sync";\n'
+            '        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
+'
+            '          valueText = std::to_string(SETTINGS.*(setting.valuePtr));
+'
             '        }',
-            '        } else if (setting.type == SettingType::ACTION &&\n'
-            '            setting.action == SettingAction::HardcoverSync) {\n'
-            '          valueText = "Sync";\n'
-            '        } else if (setting.type == SettingType::ACTION &&\n'
-            '            setting.action == SettingAction::BookerlyInstalled) {\n'
-            '          valueText = "Installed";\n'
+            '        } else if (setting.type == SettingType::ACTION && setting.action == SettingAction::BookerlyInstalled) {
+'
+            '          valueText = "Installed";
+'
+            '        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
+'
+            '          valueText = std::to_string(SETTINGS.*(setting.valuePtr));
+'
             '        }'
         )
 
