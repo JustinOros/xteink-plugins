@@ -4,6 +4,7 @@
 #include <HalStorage.h>
 #include <Logging.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
 #include <string>
@@ -74,8 +75,11 @@ void saveLocalSha(const std::string& filename, const std::string& sha) {
 bool downloadFile(const std::string& downloadUrl, const std::string& pat,
                   const std::string& destPath, const std::string& name,
                   const std::string& sha) {
+    WiFiClientSecure client;
+    client.setInsecure();
+
     HTTPClient http;
-    http.begin(downloadUrl.c_str());
+    http.begin(client, downloadUrl.c_str());
     http.setTimeout(30000);
     http.addHeader("Authorization", ("token " + pat).c_str());
     http.addHeader("User-Agent", "CrossPoint-GitHubSync/1.0");
