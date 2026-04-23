@@ -1,11 +1,10 @@
 #include "GitHubSyncPlugin.h"
 
 #include <HTTPClient.h>
-#include <HalStorage.h>
 #include <Logging.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include "SDCardManager.h"
 
 #include <string>
 #include <vector>
@@ -14,9 +13,9 @@
 
 namespace {
 
-constexpr char GITHUB_API_HOST[] = "api.github.com";
-constexpr char TREE_SHA_PATH[]   = "/.crosspoint/githubsync.sha";
-constexpr size_t CHUNK_SIZE      = 4096;
+constexpr char GH_API_BASE[]  = "https://api.github.com";
+constexpr char GH_SHA_DIR[]   = "/.crosspoint/github_sha/";
+constexpr char GH_SLEEP_BMP[] = "sleep.bmp";
 
 struct RepoInfo {
     std::string owner;
@@ -43,183 +42,148 @@ RepoInfo parseRepoUrl(const std::string& url) {
     if (slash == std::string::npos) return info;
     info.owner  = u.substr(0, slash);
     info.repo   = u.substr(slash + 1);
-    info.branch = "";
+    info.branch = "main";
     return info;
 }
 
-std::string loadCachedTreeSha() {
+std::string shaFilePath(const std::string& filename) {
+    std::string safe = filename;
+    for (char& c : safe) if (c == '/') c = '_';
+    return std::string(GH_SHA_DIR) + safe + ".sha";
+}
+
+std::string loadLocalSha(const std::string& filename) {
+    auto& sd = SDCardManager::getInstance();
     FsFile f;
-    if (!Storage.openFileForRead("GHS", TREE_SHA_PATH, f)) return {};
-    char buf[64] = {};
+    if (!sd.openFileForRead("GHS", shaFilePath(filename), f)) return "";
+    char buf[41] = {};
     f.read(buf, sizeof(buf) - 1);
     f.close();
-    return std::string(buf);
+    std::string sha(buf);
+    while (!sha.empty() && (sha.back() == '\n' || sha.back() == '\r' || sha.back() == ' '))
+        sha.pop_back();
+    return sha;
 }
 
-void saveCachedTreeSha(const std::string& sha) {
-    Storage.mkdir("/.crosspoint");
+void saveLocalSha(const std::string& filename, const std::string& sha) {
+    auto& sd = SDCardManager::getInstance();
+    sd.mkdir(GH_SHA_DIR);
     FsFile f;
-    if (!Storage.openFileForWrite("GHS", TREE_SHA_PATH, f)) return;
-    f.write(reinterpret_cast<const uint8_t*>(sha.c_str()), sha.size());
+    if (!sd.openFileForWrite("GHS", shaFilePath(filename), f)) return;
+    f.print(sha.c_str());
     f.close();
 }
 
-bool downloadFile(const std::string& rawUrl, const std::string& pat,
-                  const std::string& destPath) {
-    WiFiClientSecure client;
-    client.setInsecure();
-
+bool downloadFile(const std::string& downloadUrl, const std::string& pat,
+                  const std::string& destPath, const std::string& name,
+                  const std::string& sha) {
     HTTPClient http;
-    http.begin(client, rawUrl.c_str());
-    http.setTimeout(15000);
+    http.begin(downloadUrl.c_str());
+    http.setTimeout(30000);
+    http.addHeader("Authorization", ("token " + pat).c_str());
     http.addHeader("User-Agent", "CrossPoint-GitHubSync/1.0");
-    if (!pat.empty()) {
-        std::string auth = "token " + pat;
-        http.addHeader("Authorization", auth.c_str());
-    }
 
     int code = http.GET();
+    LOG_INF("GHS", "Download '%s' HTTP %d", name.c_str(), code);
     if (code != 200) {
-        LOG_ERR("GHS", "HTTP %d for %s", code, rawUrl.c_str());
         http.end();
         return false;
     }
 
+    auto& sd = SDCardManager::getInstance();
     FsFile f;
-    if (!Storage.openFileForWrite("GHS", destPath.c_str(), f)) {
+    if (!sd.openFileForWrite("GHS", destPath, f)) {
         LOG_ERR("GHS", "Cannot open %s for write", destPath.c_str());
         http.end();
         return false;
     }
 
     WiFiClient* stream = http.getStreamPtr();
-    uint8_t buf[CHUNK_SIZE];
-    int total     = http.getSize();
+    uint8_t buf[512];
+    int total = http.getSize();
     int remaining = total;
+    unsigned long lastData = millis();
 
     while (http.connected() && (remaining > 0 || total == -1)) {
         size_t avail = stream->available();
         if (avail) {
-            size_t toRead = std::min(avail, CHUNK_SIZE);
-            size_t read   = stream->readBytes(buf, toRead);
+            size_t read = stream->readBytes(buf, min(avail, sizeof(buf)));
             f.write(buf, read);
-            if (total != -1) remaining -= read;
+            if (remaining > 0) remaining -= (int)read;
+            lastData = millis();
+        } else {
+            if (millis() - lastData > 30000) {
+                LOG_ERR("GHS", "Download timed out: %s", name.c_str());
+                f.close();
+                http.end();
+                return false;
+            }
+            delay(10);
         }
-        delay(1);
     }
 
     f.close();
     http.end();
+    saveLocalSha(name, sha);
     return true;
 }
 
-bool fetchTree(RepoInfo& info, const std::string& pat,
-               std::string& outTreeSha,
-               std::vector<std::pair<std::string, std::string>>& outFiles) {
-    const char* branches[] = {"main", "master", nullptr};
+bool syncContents(const RepoInfo& info, const std::string& pat) {
+    std::string url = std::string(GH_API_BASE) + "/repos/" + info.owner + "/" +
+                      info.repo + "/contents/?ref=" + info.branch;
 
-    for (int i = 0; branches[i] != nullptr; i++) {
-        if (!info.branch.empty() && info.branch != branches[i]) continue;
+    HTTPClient http;
+    http.begin(url.c_str());
+    http.setTimeout(15000);
+    http.addHeader("Authorization", ("token " + pat).c_str());
+    http.addHeader("Accept", "application/vnd.github.v3+json");
+    http.addHeader("User-Agent", "CrossPoint-GitHubSync/1.0");
 
-        WiFiClientSecure client;
-        client.setInsecure();
+    int code = http.GET();
+    LOG_INF("GHS", "Contents API HTTP %d", code);
 
-        HTTPClient http;
-        char url[512];
-        snprintf(url, sizeof(url),
-                 "https://%s/repos/%s/%s/git/trees/%s?recursive=1",
-                 GITHUB_API_HOST, info.owner.c_str(), info.repo.c_str(), branches[i]);
+    if (code != 200) { http.end(); return false; }
 
-        http.begin(client, url);
-        http.addHeader("User-Agent", "CrossPoint-GitHubSync/1.0");
-        http.addHeader("Accept", "application/vnd.github+json");
-        if (!pat.empty()) {
-            std::string auth = "token " + pat;
-            http.addHeader("Authorization", auth.c_str());
-        }
+    String body = http.getString();
+    http.end();
 
-        http.setTimeout(15000);
+    JsonDocument doc;
+    if (deserializeJson(doc, body) != DeserializationError::Ok) {
+        LOG_ERR("GHS", "JSON parse error");
+        return false;
+    }
 
-        int code = http.GET();
-        if (code != 200) {
-            LOG_ERR("GHS", "Tree fetch HTTP %d for branch %s", code, branches[i]);
-            http.end();
+    JsonArray files = doc.as<JsonArray>();
+    auto& sd = SDCardManager::getInstance();
+
+    for (JsonObject file : files) {
+        const char* type        = file["type"] | "";
+        const char* name        = file["name"] | "";
+        const char* sha         = file["sha"]  | "";
+        const char* downloadUrl = file["download_url"] | "";
+
+        if (strcmp(type, "file") != 0) continue;
+
+        std::string n(name);
+        bool isEpub  = n.size() > 5 && (n.substr(n.size() - 5) == ".epub" ||
+                                         n.substr(n.size() - 5) == ".EPUB");
+        bool isSleep = (n == GH_SLEEP_BMP);
+        if (!isEpub && !isSleep) continue;
+        if (!downloadUrl || !*downloadUrl) continue;
+
+        std::string destPath = isSleep ? "/sleep.bmp" : "/" + n;
+        std::string localSha = loadLocalSha(n);
+
+        if (localSha == sha && sd.exists(destPath.c_str())) {
+            LOG_DBG("GHS", "Up to date: %s", name);
             continue;
         }
 
-        JsonDocument filter;
-        filter["sha"] = true;
-        JsonArray filterTree = filter["tree"].to<JsonArray>();
-        JsonObject filterItem = filterTree.add<JsonObject>();
-        filterItem["type"] = true;
-        filterItem["path"] = true;
-        filterItem["sha"]  = true;
-
-        WiFiClient* stream = http.getStreamPtr();
-
-        JsonDocument doc;
-        DeserializationError err = deserializeJson(doc, *stream,
-            DeserializationOption::Filter(filter));
-        http.end();
-
-        if (err != DeserializationError::Ok) {
-            LOG_ERR("GHS", "JSON parse error: %s", err.c_str());
-            continue;
-        }
-
-        outTreeSha = std::string(doc["sha"] | "");
-        info.branch = branches[i];
-
-        JsonArray tree = doc["tree"].as<JsonArray>();
-        for (JsonObject item : tree) {
-            const char* type = item["type"] | "";
-            const char* path = item["path"] | "";
-            if (strcmp(type, "blob") != 0) continue;
-            std::string p(path);
-
-            bool wanted = false;
-            if (p == "sleep.bmp") wanted = true;
-            else if (p.rfind("sleep/", 0) == 0) wanted = true;
-            else if (p.size() > 5 && p.substr(p.size() - 5) == ".epub") wanted = true;
-
-            if (wanted)
-                outFiles.push_back({p, std::string(item["sha"] | "")});
-        }
-
-        return true;
-    }
-
-    return false;
-}
-
-bool syncFiles(RepoInfo& info, const std::string& pat) {
-    std::string treeSha;
-    std::vector<std::pair<std::string, std::string>> files;
-    if (!fetchTree(info, pat, treeSha, files)) return false;
-
-    if (!treeSha.empty() && loadCachedTreeSha() == treeSha) {
-        LOG_DBG("GHS", "Repo unchanged (tree SHA match), nothing to do.");
-        return true;
-    }
-
-    for (const auto& [path, sha] : files) {
-        std::string rawUrl =
-            "https://raw.githubusercontent.com/" + info.owner + "/" +
-            info.repo + "/" + info.branch + "/" + path;
-
-        std::string dest = "/" + path;
-        std::string dir  = dest.substr(0, dest.rfind('/'));
-        if (!dir.empty() && dir != "/") Storage.mkdir(dir.c_str());
-
-        LOG_DBG("GHS", "Downloading %s", path.c_str());
-        if (!downloadFile(rawUrl, pat, dest)) {
-            LOG_ERR("GHS", "Failed: %s", path.c_str());
+        LOG_INF("GHS", "Downloading: %s", name);
+        if (!downloadFile(std::string(downloadUrl), pat, destPath, n, std::string(sha)))
             return false;
-        }
-        LOG_DBG("GHS", "OK: %s", path.c_str());
     }
 
-    saveCachedTreeSha(treeSha);
     return true;
 }
 
@@ -247,7 +211,7 @@ SyncResult sync() {
         return SyncResult::GIT_ERROR;
     }
 
-    if (!syncFiles(info, pat)) return SyncResult::GIT_ERROR;
+    if (!syncContents(info, pat)) return SyncResult::GIT_ERROR;
 
     return SyncResult::OK;
 }
