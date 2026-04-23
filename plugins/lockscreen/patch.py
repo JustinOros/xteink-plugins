@@ -375,21 +375,11 @@ def patch_main_cpp(repo_dir):
     path    = find_first("main.cpp", repo_dir)
     content = read_file(path)
 
-    if "LockscreenPlugin" in content:
-        if "shouldLockOnWake" in content or "shouldLockOnPower" in content or "wasInReader" in content:
-            content = content.replace(
-                '    const bool wasInReader = APP_STATE.lastSleepFromReader;\n'
-                '    const bool shouldLock =\n'
-                '        hasPinSet &&\n'
-                '        ((lsMode == LockscreenMode::ENABLED) ||\n'
-                '         (lsMode == LockscreenMode::ON_POWER && !wasInReader) ||\n'
-                '         (lsMode == LockscreenMode::ON_WAKE  &&  wasInReader));\n',
-                '    const bool shouldLock = hasPinSet && LockscreenPlugin::shouldLock(lsMode);\n'
-            )
-            write_file(path, content)
-            print("  main.cpp patched (updated shouldLock call).")
-        else:
-            print("  main.cpp already patched, skipping.")
+    already_has_includes = "LockscreenPlugin" in content
+    already_has_block    = "LockscreenActivity lockAct" in content
+
+    if already_has_includes and already_has_block:
+        print("  main.cpp already patched, skipping.")
         return
 
     content = content.replace(
@@ -430,11 +420,11 @@ def patch_main_cpp(repo_dir):
     content = content.replace(
         '  RECENT_BOOKS.loadFromFile();\n'
         '\n'
-        '  // Boot to home screen if no book is open',
+        '  if (HalSystem::isRebootFromPanic())',
         '  RECENT_BOOKS.loadFromFile();\n'
         + lockscreen_block
         + '\n'
-        '  // Boot to home screen if no book is open'
+        '  if (HalSystem::isRebootFromPanic())'
     )
 
     write_file(path, content)
