@@ -271,96 +271,56 @@ def patch_settings_activity_cpp(repo_dir):
 
     content = content.replace(
         '#include "fontIds.h"',
-        '#include "fontIds.h"
-#include "BookerlyPlugin.h"'
+        '#include "fontIds.h"\n#include "BookerlyPlugin.h"'
     )
 
-    if 'pluginsSettings.push_back' not in content:
+    if 'SettingAction::BookerlyInstalled' not in content:
         content = content.replace(
-            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
-',
-            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
-'
-            '  pluginsSettings.push_back(SettingInfo::Action(
-'
-            '    StrId::STR_NONE_OPT, SettingAction::BookerlyInstalled
-'
-            '  ));
-'
-        )
-    elif 'BookerlyInstalled' not in content:
-        content = content.replace(
-            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
-',
-            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));
-'
-            '  pluginsSettings.push_back(SettingInfo::Action(
-'
-            '    StrId::STR_NONE_OPT, SettingAction::BookerlyInstalled
-'
-            '  ));
-'
+            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));\n',
+            '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));\n'
+            '  pluginsSettings.push_back(SettingInfo::Action(\n'
+            '    StrId::STR_NONE_OPT, SettingAction::BookerlyInstalled\n'
+            '  ));\n'
         )
 
     if '"Bookerly Plugin"' not in content:
         content = content.replace(
             '      [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); }, nullptr, nullptr,',
-            '      [&settings, this](int index) -> std::string {
-'
-            '        if (selectedCategoryIndex == 4) {
-'
-            '          const auto& s = settings[index];
-'
-            '          if (s.type == SettingType::ACTION && s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";
-'
-            '        }
-'
-            '        return std::string(I18N.get(settings[index].nameId));
-'
+            '      [&settings, this](int index) -> std::string {\n'
+            '        if (selectedCategoryIndex == 4) {\n'
+            '          const auto& s = settings[index];\n'
+            '          if (s.type == SettingType::ACTION && s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";\n'
+            '        }\n'
+            '        return std::string(I18N.get(settings[index].nameId));\n'
             '      }, nullptr, nullptr,'
         )
 
     if '"Bookerly"' not in content:
         content = content.replace(
-            '          const uint8_t value = SETTINGS.*(setting.valuePtr);
-'
-            '          valueText = I18N.get(setting.enumValues[value]);
-',
-            '          const uint8_t value = SETTINGS.*(setting.valuePtr);
-'
-            '          if (setting.key && std::string(setting.key) == "fontFamily" && value == CrossPointSettings::BOOKERLY) {
-'
-            '            valueText = "Bookerly";
-'
-            '          } else {
-'
-            '            valueText = I18N.get(setting.enumValues[value]);
-'
-            '          }
-'
+            '          const uint8_t value = SETTINGS.*(setting.valuePtr);\n'
+            '          valueText = I18N.get(setting.enumValues[value]);\n',
+            '          const uint8_t value = SETTINGS.*(setting.valuePtr);\n'
+            '          if (setting.key && std::string(setting.key) == "fontFamily" && value == CrossPointSettings::BOOKERLY) {\n'
+            '            valueText = "Bookerly";\n'
+            '          } else {\n'
+            '            valueText = I18N.get(setting.enumValues[value]);\n'
+            '          }\n'
         )
 
     if '"Installed"' not in content:
         content = content.replace(
-            '        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
-'
-            '          valueText = std::to_string(SETTINGS.*(setting.valuePtr));
-'
+            '        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {\n'
+            '          valueText = std::to_string(SETTINGS.*(setting.valuePtr));\n'
             '        }',
-            '        } else if (setting.type == SettingType::ACTION && setting.action == SettingAction::BookerlyInstalled) {
-'
-            '          valueText = "Installed";
-'
-            '        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {
-'
-            '          valueText = std::to_string(SETTINGS.*(setting.valuePtr));
-'
+            '        } else if (setting.type == SettingType::ACTION && setting.action == SettingAction::BookerlyInstalled) {\n'
+            '          valueText = "Installed";\n'
+            '        } else if (setting.type == SettingType::VALUE && setting.valuePtr != nullptr) {\n'
+            '          valueText = std::to_string(SETTINGS.*(setting.valuePtr));\n'
             '        }'
         )
 
     write_file(path, content)
     print("  SettingsActivity.cpp patched.")
-
 
 def patch_web_server(repo_dir):
     path    = find_first("CrossPointWebServer.cpp", repo_dir)
