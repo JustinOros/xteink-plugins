@@ -108,7 +108,7 @@ def patch_settings_list_h(repo_dir):
 
     entry = (
         '      SettingInfo::Enum(StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
-        '                        {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"),\n'
+        '                        {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"),\n'
     )
 
     content = content.replace(
@@ -183,14 +183,14 @@ def patch_settings_cpp(repo_dir):
         '  ));\n'
         '  pluginsSettings.push_back(SettingInfo::Enum(\n'
         '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
-        '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
+        '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
         '  ));\n'
     )
 
     sf_only_block = (
         '  pluginsSettings.push_back(SettingInfo::Enum(\n'
         '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
-        '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
+        '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
         '  ));\n'
     )
 
