@@ -219,6 +219,22 @@ def patch_settings_cpp(repo_dir):
             '      return std::string(I18N.get(settings[index].nameId));\n'
             '    },'
         )
+    else:
+        for s_decl in [
+            '        const auto& s = settings[index];\n',
+            '          const auto& s = settings[index];\n',
+        ]:
+            if s_decl in content and '"darkModeState") return "Dark Mode"' not in content:
+                content = content.replace(
+                    s_decl,
+                    s_decl +
+                    s_decl[:len(s_decl) - len(s_decl.lstrip())] +
+                    'if (s.key && std::string(s.key) == "darkModeState") return "Dark Mode";\n' +
+                    s_decl[:len(s_decl) - len(s_decl.lstrip())] +
+                    'if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n',
+                    1
+                )
+                break
 
     both_present = 'DarkModePlugin::stateName' in content and 'SmallerFontsPlugin::modeName' in content
     only_dark    = 'DarkModePlugin::stateName' in content and 'SmallerFontsPlugin::modeName' not in content

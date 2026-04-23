@@ -271,13 +271,18 @@ def patch_settings_cpp(repo_dir):
         )
         changed = True
     elif '"lockscreenMode") return "Lockscreen"' not in content:
-        content = content.replace(
-            '      if (selectedCategoryIndex == 4) {\n'
+        for s_decl in [
             '        const auto& s = settings[index];\n',
-            '      if (selectedCategoryIndex == 4) {\n'
-            '        const auto& s = settings[index];\n'
-            '        if (s.key && std::string(s.key) == "lockscreenMode") return "Lockscreen";\n'
-        )
+            '          const auto& s = settings[index];\n',
+        ]:
+            if s_decl in content:
+                indent = s_decl[:len(s_decl) - len(s_decl.lstrip())]
+                content = content.replace(
+                    s_decl,
+                    s_decl + indent + 'if (s.key && std::string(s.key) == "lockscreenMode") return "Lockscreen";\n',
+                    1
+                )
+                break
         changed = True
 
     if 'LockscreenPlugin::modeName' not in content:
