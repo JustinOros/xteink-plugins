@@ -109,6 +109,13 @@ def run_plugin_patch(plugin_dir: str, yes_all: bool = False) -> bool:
         return False
 
 
+def clear_plugin_caches():
+    for plugin_name in os.listdir(PLUGINS_DIR):
+        cache_dir = os.path.join(PLUGINS_DIR, plugin_name, "__pycache__")
+        if os.path.isdir(cache_dir):
+            rmtree(cache_dir)
+
+
 def apply_plugins(yes_all: bool = False):
     print("[2/3] Applying plugins...")
 
@@ -307,6 +314,7 @@ def main():
         sys.exit(0)
     print()
     clone_repo(force=not args.no_reclone)
+    clear_plugin_caches()
     apply_plugins(yes_all=args.yes)
     build_and_flash(args.environment)
     print("\nDone.")
