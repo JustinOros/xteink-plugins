@@ -71,6 +71,7 @@ bool downloadFile(const std::string& rawUrl, const std::string& pat,
 
     HTTPClient http;
     http.begin(client, rawUrl.c_str());
+    http.setTimeout(15000);
     http.addHeader("User-Agent", "CrossPoint-GitHubSync/1.0");
     if (!pat.empty()) {
         std::string auth = "token " + pat;
@@ -137,6 +138,8 @@ bool fetchTree(RepoInfo& info, const std::string& pat,
             http.addHeader("Authorization", auth.c_str());
         }
 
+        http.setTimeout(15000);
+
         int code = http.GET();
         if (code != 200) {
             LOG_ERR("GHS", "Tree fetch HTTP %d for branch %s", code, branches[i]);
@@ -144,10 +147,19 @@ bool fetchTree(RepoInfo& info, const std::string& pat,
             continue;
         }
 
+        JsonDocument filter;
+        filter["sha"] = true;
+        JsonArray filterTree = filter["tree"].to<JsonArray>();
+        JsonObject filterItem = filterTree.add<JsonObject>();
+        filterItem["type"] = true;
+        filterItem["path"] = true;
+        filterItem["sha"]  = true;
+
         WiFiClient* stream = http.getStreamPtr();
 
         JsonDocument doc;
-        DeserializationError err = deserializeJson(doc, *stream);
+        DeserializationError err = deserializeJson(doc, *stream,
+            DeserializationOption::Filter(filter));
         http.end();
 
         if (err != DeserializationError::Ok) {
