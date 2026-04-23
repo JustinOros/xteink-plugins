@@ -75,13 +75,7 @@ std::string extractIsbnFromOpf(const uint8_t* data, size_t len) {
     return {};
 }
 
-std::string getIsbnFromEpub(const std::string& path) {
-    Epub epub(path, CACHE_DIR);
-    if (!epub.load(false, true) && !epub.load(true, true)) {
-        LOG_DBG("HCV", "Could not load epub: %s", path.c_str());
-        return {};
-    }
-
+std::string getIsbnFromEpub(Epub& epub, const std::string& path) {
     const char* opfCandidates[] = {
         "OEBPS/content.opf", "OPS/content.opf", "content.opf",
         "EPUB/content.opf",  nullptr
@@ -124,7 +118,7 @@ std::string getIsbnFromEpub(const std::string& path) {
 
 // ---- Progress reading -------------------------------------------------------
 
-int epubProgressPercent(const std::string& path, const std::string& cachePath, int& outPage) {
+int epubProgressPercent(const std::string& cachePath, int& outPage, Epub& epub) {
     FsFile f;
     if (!Storage.openFileForRead("HCV", (cachePath + "/progress.bin").c_str(), f))
         return -1;
@@ -141,9 +135,6 @@ int epubProgressPercent(const std::string& path, const std::string& cachePath, i
     outPage = currentPage;
 
     float spineProgress = static_cast<float>(currentPage) / static_cast<float>(pageCount);
-
-    Epub epub(path, CACHE_DIR);
-    if (!epub.load(false, true) && !epub.load(true, true)) return -1;
 
     float pct = epub.calculateProgress(spineIndex, spineProgress) * 100.0f;
     return static_cast<int>(pct + 0.5f);
@@ -179,43 +170,33 @@ std::string buildCachePath(const std::string& filePath) {
            std::to_string(std::hash<std::string>{}(filePath));
 }
 
-std::vector<InProgressBook> collectInProgressBooks() {
+void collectBooks(std::vector<InProgressBook>& inProgress, std::vector<InProgressBook>& completed) {
     std::vector<std::string> allBooks;
     scanBooks("/", allBooks);
 
-    std::vector<InProgressBook> result;
     for (const auto& path : allBooks) {
         std::string cachePath = buildCachePath(path);
-        int page = 0;
-        int pct  = epubProgressPercent(path, cachePath, page);
-        if (pct < 1) continue;  // Skip 0% books, include 1-100%+
 
-        std::string isbn = getIsbnFromEpub(path);
+        // Check progress.bin exists before loading the EPUB
+        FsFile f;
+        if (!Storage.openFileForRead("HCV", (cachePath + "/progress.bin").c_str(), f)) continue;
+        f.close();
+
+        int page = 0;
+        Epub epub(path, CACHE_DIR);
+        if (!epub.load(false, true) && !epub.load(true, true)) continue;
+
+        int pct = epubProgressPercent(cachePath, page, epub);
+        if (pct < 1) continue;
+
+        std::string isbn = getIsbnFromEpub(epub, path);
         if (isbn.empty()) continue;
 
-        result.push_back({isbn, page, pct});
+        if (pct >= 100)
+            completed.push_back({isbn, page, pct});
+        else
+            inProgress.push_back({isbn, page, pct});
     }
-    return result;
-}
-
-// New function to collect completed books (100%+)
-std::vector<InProgressBook> collectCompletedBooks() {
-    std::vector<std::string> allBooks;
-    scanBooks("/", allBooks);
-
-    std::vector<InProgressBook> result;
-    for (const auto& path : allBooks) {
-        std::string cachePath = buildCachePath(path);
-        int page = 0;
-        int pct  = epubProgressPercent(path, cachePath, page);
-        if (pct < 100) continue;  // Only include 100%+ books
-
-        std::string isbn = getIsbnFromEpub(path);
-        if (isbn.empty()) continue;
-
-        result.push_back({isbn, page, pct});
-    }
-    return result;
 }
 
 // ---- HTTP helper -----------------------------------------------------------
@@ -223,9 +204,11 @@ std::vector<InProgressBook> collectCompletedBooks() {
 String graphqlPost(const char* body, const std::string& token) {
     WiFiClientSecure client;
     client.setInsecure();
+    client.setTimeout(15);
 
     HTTPClient http;
     http.begin(client, HARDCOVER_API);
+    http.setTimeout(15000);
     http.addHeader("Content-Type", "application/json");
 
     char authHeader[648];
@@ -233,6 +216,11 @@ String graphqlPost(const char* body, const std::string& token) {
     http.addHeader("Authorization", authHeader);
 
     int code = http.POST(body);
+    if (code <= 0) {
+        LOG_ERR("HCV", "HTTP error %d (connection failed — check WiFi/firewall)", code);
+        http.end();
+        return "";
+    }
     if (code != 200) {
         LOG_ERR("HCV", "HTTP %d", code);
         http.end();
@@ -482,9 +470,11 @@ SyncResult syncProgress() {
     }
     const std::string token(SETTINGS.hardcoverApiToken);
 
-    auto books = collectInProgressBooks();
+    std::vector<InProgressBook> books;
+    std::vector<InProgressBook> completedBooks;
+    collectBooks(books, completedBooks);
 
-    if (books.empty()) {
+    if (books.empty() && completedBooks.empty()) {
         LOG_DBG("HCV", "No in-progress epub books with ISBN found.");
         return SyncResult::NO_BOOKS;
     }
@@ -493,15 +483,12 @@ SyncResult syncProgress() {
     if (userId == 0) return SyncResult::API_ERROR;
 
     bool allOk = true;
-    
-    // Sync progress for all books with > 0% completion
+
     for (const auto& b : books) {
         if (!syncBook(b, userId, token))
             allOk = false;
     }
-    
-    // Mark 100%+ books as Read
-    auto completedBooks = collectCompletedBooks();
+
     for (const auto& b : completedBooks) {
         if (!markAsRead(b.isbn, token))
             allOk = false;
