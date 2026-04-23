@@ -201,12 +201,22 @@ def patch_cross_point_settings_cpp(repo_dir, new_ids):
         '      return resolve(BOOKERLY_12_FONT_ID);\n'
     )
 
-    content = content.replace(
+    anchor = None
+    for candidate in [
         '        case EXTRA_LARGE:\n          return resolve(OPENDYSLEXIC_14_FONT_ID);\n      }\n  }\n}\n',
-        '        case EXTRA_LARGE:\n          return resolve(OPENDYSLEXIC_14_FONT_ID);\n      }\n'
-        + bookerly_case +
-        '  }\n}\n'
-    )
+        '        case EXTRA_LARGE:\n          return OPENDYSLEXIC_14_FONT_ID;\n      }\n  }\n}\n',
+    ]:
+        if candidate in content:
+            anchor = candidate
+            break
+
+    if anchor:
+        content = content.replace(
+            anchor,
+            '        case EXTRA_LARGE:\n          return ' + ('resolve(OPENDYSLEXIC_14_FONT_ID)' if 'resolve' in anchor else 'OPENDYSLEXIC_14_FONT_ID') + ';\n      }\n'
+            + bookerly_case +
+            '  }\n}\n'
+        )
 
     write_file(path, content)
     print("  CrossPointSettings.cpp patched.")
