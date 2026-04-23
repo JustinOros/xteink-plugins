@@ -227,13 +227,6 @@ def patch_settings_list_h(repo_dir):
             '{StrId::STR_NOTO_SERIF, StrId::STR_NOTO_SANS, StrId::STR_OPEN_DYSLEXIC, StrId::STR_NONE_OPT}, "fontFamily"'
         )
 
-    if 'bookerlyInstalled' not in content:
-        content = content.replace(
-            '  };\n  return list;\n}\n',
-            '      SettingInfo::Enum(StrId::STR_NONE_OPT, &CrossPointSettings::fontFamily,\n'
-            '                        {StrId::STR_NONE_OPT}, "bookerlyInstalled"),\n'
-            '  };\n  return list;\n}\n'
-        )
 
     write_file(path, content)
     print("  SettingsList.h patched.")
@@ -243,20 +236,26 @@ def patch_settings_activity_h(repo_dir):
     path    = find_first("SettingsActivity.h", repo_dir)
     content = read_file(path)
 
-    if 'categoryCount = 5' in content:
+    if 'BookerlyInstalled' in content:
         print("  SettingsActivity.h already patched, skipping.")
         return
 
-    content = content.replace(
-        'static constexpr int categoryCount = 4;',
-        'static constexpr int categoryCount = 5;'
-    )
+    if 'categoryCount = 4' in content:
+        content = content.replace(
+            'static constexpr int categoryCount = 4;',
+            'static constexpr int categoryCount = 5;'
+        )
 
     if 'pluginsSettings' not in content:
         content = content.replace(
             '  std::vector<SettingInfo> systemSettings;',
             '  std::vector<SettingInfo> systemSettings;\n  std::vector<SettingInfo> pluginsSettings;'
         )
+
+    content = content.replace(
+        '  HardcoverSync,\n};',
+        '  HardcoverSync,\n  BookerlyInstalled,\n};'
+    )
 
     write_file(path, content)
     print("  SettingsActivity.h patched.")
@@ -266,7 +265,7 @@ def patch_settings_activity_cpp(repo_dir):
     path    = find_first("SettingsActivity.cpp", repo_dir)
     content = read_file(path)
 
-    if "BookerlyPlugin" in content:
+    if '"Bookerly Plugin"' in content:
         print("  SettingsActivity.cpp already patched, skipping.")
         return
 
@@ -324,16 +323,37 @@ def patch_settings_activity_cpp(repo_dir):
 
     if '"Bookerly Plugin"' not in content:
         content = content.replace(
-            '    [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); },',
-            '    [&settings, this](int index) -> std::string {\n'
-            '      if (selectedCategoryIndex == 4) {\n'
-            '        const auto& s = settings[index];\n'
-            '        if (s.key && std::string(s.key) == "bookerlyInstalled") return "Bookerly Plugin";\n'
-            '        if (s.key && std::string(s.key) == "darkModeState") return "Dark Mode";\n'
+            '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n',
             '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n'
-            '      }\n'
-            '      return std::string(I18N.get(settings[index].nameId));\n'
-            '    },'
+            '        if (s.type == SettingType::ACTION &&\n'
+            '            s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";\n'
+        )
+
+    if 'SettingAction::BookerlyInstalled' not in content:
+        content = content.replace(
+            '  pluginsSettings.push_back(SettingInfo::Enum(\n'
+            '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
+            '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
+            '  ));\n',
+            '  pluginsSettings.push_back(SettingInfo::Enum(\n'
+            '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
+            '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
+            '  ));\n'
+            '  pluginsSettings.push_back(SettingInfo::Action(\n'
+            '    StrId::STR_NONE_OPT, SettingAction::BookerlyInstalled\n'
+            '  ));\n'
+        )
+
+    if 'SettingAction::BookerlyInstalled' not in content or 'case SettingAction::BookerlyInstalled' not in content:
+        content = content.replace(
+            '      case SettingAction::None:\n'
+            '        // Do nothing\n'
+            '        break;',
+            '      case SettingAction::BookerlyInstalled:\n'
+            '        break;\n'
+            '      case SettingAction::None:\n'
+            '        // Do nothing\n'
+            '        break;'
         )
 
     if '"Bookerly"' not in content:
@@ -341,13 +361,26 @@ def patch_settings_activity_cpp(repo_dir):
             '          } else {\n'
             '            valueText = I18N.get(setting.enumValues[value]);\n'
             '          }',
-            '          } else if (setting.key && std::string(setting.key) == "bookerlyInstalled") {\n'
-            '            valueText = "Installed";\n'
             '          } else if (setting.key && std::string(setting.key) == "fontFamily" && value == CrossPointSettings::BOOKERLY) {\n'
             '            valueText = "Bookerly";\n'
             '          } else {\n'
             '            valueText = I18N.get(setting.enumValues[value]);\n'
             '          }'
+        )
+
+    if '"Installed"' not in content:
+        content = content.replace(
+            '        } else if (setting.type == SettingType::ACTION &&\n'
+            '            setting.action == SettingAction::HardcoverSync) {\n'
+            '          valueText = "Sync";\n'
+            '        }',
+            '        } else if (setting.type == SettingType::ACTION &&\n'
+            '            setting.action == SettingAction::HardcoverSync) {\n'
+            '          valueText = "Sync";\n'
+            '        } else if (setting.type == SettingType::ACTION &&\n'
+            '            setting.action == SettingAction::BookerlyInstalled) {\n'
+            '          valueText = "Installed";\n'
+            '        }'
         )
 
     write_file(path, content)
