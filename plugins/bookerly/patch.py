@@ -277,7 +277,7 @@ def patch_settings_activity_cpp(repo_dir):
     path    = find_first("SettingsActivity.cpp", repo_dir)
     content = read_file(path)
 
-    if '"Bookerly Plugin"' in content:
+    if '"Bookerly Font"' in content:
         print("  SettingsActivity.cpp already patched, skipping.")
         return
 
@@ -295,13 +295,13 @@ def patch_settings_activity_cpp(repo_dir):
             '  ));\n'
         )
 
-    if '"Bookerly Plugin"' not in content:
+    if '"Bookerly Font"' not in content:
         content = content.replace(
             '      [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); }, nullptr, nullptr,',
             '      [&settings, this](int index) -> std::string {\n'
             '        if (selectedCategoryIndex == 4) {\n'
             '          const auto& s = settings[index];\n'
-            '          if (s.type == SettingType::ACTION && s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";\n'
+            '          if (s.type == SettingType::ACTION && s.action == SettingAction::BookerlyInstalled) return "Bookerly Font";\n'
             '        }\n'
             '        return std::string(I18N.get(settings[index].nameId));\n'
             '      }, nullptr, nullptr,'

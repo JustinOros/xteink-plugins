@@ -219,7 +219,7 @@ def patch_settings_cpp(repo_dir):
             for first_key_line in [
                 '        if (s.key && std::string(s.key) == "darkModeState") return "Dark Mode";\n',
                 '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n',
-                '          if (s.type == SettingType::ACTION && s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";\n',
+                '          if (s.type == SettingType::ACTION && s.action == SettingAction::BookerlyInstalled) return "Bookerly Font";\n',
                 '        return std::string(I18N.get(settings[index].nameId));\n',
             ]:
                 if first_key_line in content:

@@ -293,7 +293,7 @@ def patch_settings_cpp(repo_dir):
                 '        if (s.key && std::string(s.key) == "smallerFontsMode") return "Smaller Fonts";\n',
                 '        if (s.key && std::string(s.key) == "darkModeState") return "Dark Mode";\n',
                 '            s.action == SettingAction::GitHubSync) return "GitHub Sync";\n',
-                '            s.action == SettingAction::BookerlyInstalled) return "Bookerly Plugin";\n',
+                '            s.action == SettingAction::BookerlyInstalled) return "Bookerly Font";\n',
             ]:
                 for cl in [closing, closing_bookerly]:
                     anchor = last_key_line + cl
