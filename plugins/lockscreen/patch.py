@@ -332,7 +332,7 @@ def patch_web_server(repo_dir):
     path    = find_first("CrossPointWebServer.cpp", repo_dir)
     content = read_file(path)
 
-    if 'lockscreenMode") continue' in content:
+    if 'lockscreenMode") == 0 || strcmp(s.key, "lockscreenPinHash") == 0)) continue' in content:
         print("  CrossPointWebServer.cpp already patched, skipping.")
         return
 
@@ -352,20 +352,12 @@ def patch_web_server(repo_dir):
         print("  CrossPointWebServer.cpp patched (lockscreen hidden from WUI).")
         return
 
-    name_override = (
-        '\n'
-        '    if (s.key && (strcmp(s.key, "lockscreenMode") == 0 || strcmp(s.key, "lockscreenPinHash") == 0)) continue;\n'
-    )
+    skip = '    if (s.key && (strcmp(s.key, "lockscreenMode") == 0 || strcmp(s.key, "lockscreenPinHash") == 0)) continue;\n'
 
-    content = content.replace(
-        '    doc["category"] = I18N.get(s.category);\n'
-        '\n'
-        '    switch (s.type) {',
-        '    doc["category"] = I18N.get(s.category);\n'
-        + name_override
-        + '\n'
-        '    switch (s.type) {'
-    )
+    # Insert continue right after category line regardless of what follows
+    anchor = '    doc["category"] = I18N.get(s.category);\n'
+    if anchor in content:
+        content = content.replace(anchor, anchor + '\n' + skip, 1)
 
     write_file(path, content)
     print("  CrossPointWebServer.cpp patched (lockscreen hidden from WUI).")
@@ -409,6 +401,8 @@ def patch_main_cpp(repo_dir):
         '        delay(10);\n'
         '      }\n'
         '      lockAct.onExit();\n'
+        '      renderer.clearScreen();\n'
+        '      renderer.displayBuffer();\n'
         '      if (!lockAct.wasSuccessful()) {\n'
         '        enterDeepSleep();\n'
         '        return;\n'

@@ -9,12 +9,12 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
-static constexpr int SCREEN_W = 480;
-static constexpr int KEY_W    = 130;
-static constexpr int KEY_H    = 80;
-static constexpr int KEY_PAD  = 8;
-static constexpr int GRID_W   = LockscreenActivity::COLS * (KEY_W + KEY_PAD) - KEY_PAD;
-static constexpr int GRID_X   = (SCREEN_W - GRID_W) / 2;
+static constexpr int CARD_MARGIN = 30;
+
+static constexpr int KEY_W     = 110;
+static constexpr int KEY_H     = 72;
+static constexpr int KEY_PAD_X = 14;
+static constexpr int KEY_PAD_Y = 10;
 
 void LockscreenActivity::onEnter() {
     Activity::onEnter();
@@ -63,6 +63,10 @@ void LockscreenActivity::pressCurrentKey() {
             finish();
         } else {
             if (LockscreenPlugin::checkPin(pin_, SETTINGS.lockscreenPinHash)) {
+                while (mappedInput.isPressed(MappedInputManager::Button::Confirm)) {
+                    mappedInput.update();
+                    delay(10);
+                }
                 success_ = true;
                 done_    = true;
             } else {
@@ -86,70 +90,91 @@ void LockscreenActivity::pressCurrentKey() {
             cursorRow_ = 3;
             cursorCol_ = 2;
         }
-        renderPending_  = true;
+        renderPending_ = true;
         requestUpdate();
     }
 }
 
-void LockscreenActivity::renderPinDisplay(int startY, bool masked) const {
-    constexpr int BOX_W   = 50;
-    constexpr int BOX_H   = 60;
-    constexpr int BOX_PAD = 12;
-    constexpr int TOTAL_W = 4 * BOX_W + 3 * BOX_PAD;
-    int x = (SCREEN_W - TOTAL_W) / 2;
-
-    for (int i = 0; i < PIN_LEN; i++) {
-        int bx = x + i * (BOX_W + BOX_PAD);
-        renderer.drawRect(bx, startY, BOX_W, BOX_H);
-        if (i < pinLen_) {
-            char display[2] = {masked ? '*' : pin_[i], '\0'};
-            renderer.drawText(UI_12_FONT_ID, bx + BOX_W / 2 - 8, startY + BOX_H / 2 - 10, display);
+void LockscreenActivity::renderPinDisplay(int inputX, int inputY, int inputLineY, int inputW, bool masked) const {
+    char dotStr[PIN_LEN * 4 + 2] = {};
+    int pos = 0;
+    for (int i = 0; i < pinLen_; i++) {
+        if (masked) {
+            dotStr[pos++] = '\xe2';
+            dotStr[pos++] = '\x80';
+            dotStr[pos++] = '\xa2';
+        } else {
+            dotStr[pos++] = pin_[i];
         }
     }
+    dotStr[pos] = '\0';
+
+    renderer.drawText(UI_12_FONT_ID, inputX, inputY, dotStr, true, EpdFontFamily::BOLD);
+    renderer.drawLine(inputX, inputLineY, inputX + inputW, inputLineY);
 }
 
-void LockscreenActivity::renderKeypad(int startY) const {
+void LockscreenActivity::renderKeypad(int gridX, int gridY) const {
     for (int r = 0; r < ROWS; r++) {
         for (int c = 0; c < COLS; c++) {
-            int kx = GRID_X + c * (KEY_W + KEY_PAD);
-            int ky = startY + r * (KEY_H + KEY_PAD);
+            int kx = gridX + c * (KEY_W + KEY_PAD_X);
+            int ky = gridY + r * (KEY_H + KEY_PAD_Y);
             bool isCursor = (r == cursorRow_ && c == cursorCol_);
+
+            const char* displayLabel = KEYS[r][c];
+
             if (isCursor) {
-                renderer.fillRect(kx, ky, KEY_W, KEY_H);
-                renderer.drawText(UI_12_FONT_ID, kx + KEY_W / 2 - 8, ky + KEY_H / 2 - 10,
-                                  KEYS[r][c], false, EpdFontFamily::BOLD);
+                constexpr int HL_PAD = 8;
+                renderer.fillRect(kx - HL_PAD, ky - HL_PAD / 2,
+                                  KEY_W + HL_PAD * 2, KEY_H + HL_PAD, true);
+                renderer.drawText(UI_12_FONT_ID,
+                                  kx + KEY_W / 2 - 8,
+                                  ky + KEY_H / 2 - 10,
+                                  displayLabel, false, EpdFontFamily::BOLD);
             } else {
-                renderer.drawRect(kx, ky, KEY_W, KEY_H);
-                renderer.drawText(UI_12_FONT_ID, kx + KEY_W / 2 - 8, ky + KEY_H / 2 - 10,
-                                  KEYS[r][c], true, EpdFontFamily::REGULAR);
+                renderer.drawText(UI_12_FONT_ID,
+                                  kx + KEY_W / 2 - 8,
+                                  ky + KEY_H / 2 - 10,
+                                  displayLabel, true, EpdFontFamily::REGULAR);
             }
         }
     }
 }
 
 void LockscreenActivity::render(RenderLock&&) {
-    const auto& metrics  = UITheme::getInstance().getMetrics();
-    const auto  pageH    = renderer.getScreenHeight();
-    const bool  isCreate = (purpose_ == Purpose::CREATE);
-    const bool  masked   = !isCreate;
+    const bool isCreate = (purpose_ == Purpose::CREATE);
+    const bool masked   = !isCreate;
+
+    const int screenW = renderer.getScreenWidth();
+    const int screenH = renderer.getScreenHeight();
+
+    const int cardX = CARD_MARGIN;
+    const int cardY = CARD_MARGIN;
+    const int cardW = screenW - 2 * CARD_MARGIN;
+    const int cardH = screenH - 2 * CARD_MARGIN;
+
+    const int titleY     = cardY + 36;
+    const int inputY     = cardY + 110;
+    const int inputLineY = inputY + 42;
+    const int inputX     = cardX + 30;
+    const int inputW     = cardW - 60;
+
+    const int gridW = COLS * KEY_W + (COLS - 1) * KEY_PAD_X;
+    const int gridX = (screenW - gridW) / 2;
+    const int gridY = inputLineY + 60;
 
     renderer.clearScreen();
+    renderer.drawRect(cardX, cardY, cardW, cardH);
 
-    const char* title = isCreate ? "Set PIN" : "Unlock";
-    GUI.drawHeader(renderer, Rect{0, metrics.topPadding, SCREEN_W, metrics.headerHeight}, title);
+    const char* title = isCreate ? "Set Passcode" : "Enter Passcode";
+    renderer.drawText(UI_12_FONT_ID, cardX + 30, titleY, title, true, EpdFontFamily::BOLD);
 
-    int y = metrics.topPadding + metrics.headerHeight + 80;
+    renderPinDisplay(inputX, inputY, inputLineY, inputW, masked);
+    renderKeypad(gridX, gridY);
 
-    renderPinDisplay(y, masked);
-    y += 90;
-    renderKeypad(y);
-
-    if (isCreate) {
-        renderer.drawCenteredText(UI_10_FONT_ID, pageH - 40, "Navigate: Directional buttons  |  Select: Power");
-    } else if (attempts_ > 0) {
-        char msg[40];
+    if (attempts_ > 0) {
+        char msg[48];
         snprintf(msg, sizeof(msg), "Incorrect PIN. %d attempt(s) remaining.", MAX_ATTEMPTS - attempts_);
-        renderer.drawCenteredText(UI_10_FONT_ID, pageH - 40, msg);
+        renderer.drawCenteredText(UI_10_FONT_ID, cardY + cardH - 28, msg);
     }
 
     renderer.displayBuffer();

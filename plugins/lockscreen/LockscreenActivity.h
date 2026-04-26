@@ -59,7 +59,7 @@ class LockscreenActivity final : public Activity {
     unsigned long enterTime_ = 0;
 
     void pressCurrentKey();
-    void renderPinDisplay(int startY, bool masked) const;
-    void renderKeypad(int startY) const;
+    void renderPinDisplay(int inputX, int inputY, int inputLineY, int inputW, bool masked) const;
+    void renderKeypad(int gridX, int gridY) const;
     void goToSleep();
 };
