@@ -1,30 +1,9 @@
 #!/usr/bin/env python3
-"""
-Hardcover Progress plugin patch.
-
-Adds a "Hardcover Progress" entry to the Plugins settings tab.
-When the user presses Sync, the device:
-
-  1. Recursively scans the SD card for .epub files.
-  2. For each file whose progress.bin shows 1-99% read, parses the
-     epub OPF metadata to extract the ISBN-13.
-  3. POSTs a GraphQL mutation to https://api.hardcover.app/v1/graphql,
-     setting that book's status to "Currently Reading" with the current
-     page number.
-
-The Hardcover API bearer token is stored in CrossPointSettings as a
-char[256] field (hardcoverApiToken) and exposed in the web UI.
-"""
 
 import os
 import sys
 import glob
 import shutil
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def read_file(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -40,11 +19,6 @@ def find_first(filename, repo_dir):
         sys.exit(f"ERROR: Could not locate {filename} in {repo_dir}")
     return results[0]
 
-
-# ---------------------------------------------------------------------------
-# Copy plugin sources into the repo
-# ---------------------------------------------------------------------------
-
 def copy_plugin_sources(plugin_dir, repo_dir):
     dest = os.path.join(repo_dir, "src", "activities", "settings")
     os.makedirs(dest, exist_ok=True)
@@ -55,11 +29,6 @@ def copy_plugin_sources(plugin_dir, repo_dir):
             shutil.copy2(src, dst)
             print(f"    \u2713 {fname}")
 
-
-# ---------------------------------------------------------------------------
-# CrossPointSettings.h  - add hardcoverApiToken char array with default token
-# ---------------------------------------------------------------------------
-
 def patch_cross_point_settings_h(repo_dir, token=""):
     path    = find_first("CrossPointSettings.h", repo_dir)
     content = read_file(path)
@@ -68,8 +37,6 @@ def patch_cross_point_settings_h(repo_dir, token=""):
         print("  CrossPointSettings.h already patched, skipping.")
         return
 
-    # Escape token for use in a C string literal (tokens are JWTs, no special chars needed
-    # beyond basic safety)
     safe_token = token.replace('\\', '\\\\').replace('"', '\\"')
 
     content = content.replace(
@@ -79,11 +46,6 @@ def patch_cross_point_settings_h(repo_dir, token=""):
 
     write_file(path, content)
     print(f"  CrossPointSettings.h patched{' (token embedded)' if token else ' (no token)'}.") 
-
-
-# ---------------------------------------------------------------------------
-# SettingsList.h  - add hardcoverApiToken String for web UI exposure
-# ---------------------------------------------------------------------------
 
 def patch_settings_list_h(repo_dir):
     path    = find_first("SettingsList.h", repo_dir)
@@ -103,12 +65,6 @@ def patch_settings_list_h(repo_dir):
 
     write_file(path, content)
     print("  SettingsList.h patched.")
-
-
-# ---------------------------------------------------------------------------
-# SettingAction enum  - add HardcoverSync value
-# The enum lives in SettingsActivity.h.
-# ---------------------------------------------------------------------------
 
 def patch_setting_action_enum(repo_dir):
     path    = find_first("SettingsActivity.h", repo_dir)
@@ -134,12 +90,6 @@ def patch_setting_action_enum(repo_dir):
 
     write_file(path, content)
     print("  SettingAction::HardcoverSync added.")
-
-
-# ---------------------------------------------------------------------------
-# SettingsActivity.h  - add pluginsSettings vector (if not already done by
-#                       darkmode/smallerfonts) and categoryCount = 5
-# ---------------------------------------------------------------------------
 
 def patch_settings_h(repo_dir):
     path    = find_first("SettingsActivity.h", repo_dir)
@@ -167,11 +117,6 @@ def patch_settings_h(repo_dir):
     write_file(path, content)
     print("  SettingsActivity.h patched.")
 
-
-# ---------------------------------------------------------------------------
-# SettingsActivity.cpp  - wire up Plugins tab + Hardcover action
-# ---------------------------------------------------------------------------
-
 def patch_settings_cpp(repo_dir):
     path    = find_first("SettingsActivity.cpp", repo_dir)
     content = read_file(path)
@@ -180,13 +125,11 @@ def patch_settings_cpp(repo_dir):
         print("  SettingsActivity.cpp already patched, skipping.")
         return
 
-    # ---- include HardcoverPlugin.h and HardcoverSyncActivity.h ------------
     content = content.replace(
         '#include "SettingsList.h"',
         '#include "SettingsList.h"\n#include "HardcoverPlugin.h"\n#include "HardcoverSyncActivity.h"'
     )
 
-    # ---- categoryNames: add STR_NONE_OPT for Plugins tab (if not done yet) -
     if 'StrId::STR_NONE_OPT};' not in content and 'STR_NONE_OPT' not in content.split('categoryNames')[1].split(';')[0]:
         content = content.replace(
             'const StrId SettingsActivity::categoryNames[categoryCount] = {StrId::STR_CAT_DISPLAY, StrId::STR_CAT_READER,\n'
@@ -196,16 +139,12 @@ def patch_settings_cpp(repo_dir):
             '                                                              StrId::STR_NONE_OPT};'
         )
 
-    # ---- pluginsSettings.clear() -------------------------------------------
     if "pluginsSettings.clear();" not in content:
         content = content.replace(
             '  systemSettings.clear();',
             '  systemSettings.clear();\n  pluginsSettings.clear();'
         )
 
-    # ---- push Hardcover action into pluginsSettings -------------------------
-    # Darkmode pushes darkModeState and smallerFontsMode here. We append after.
-    # Handle three cases: both other plugins present, only darkmode, or neither.
     hardcover_push = (
         '  pluginsSettings.push_back(SettingInfo::Action(\n'
         '    StrId::STR_NONE_OPT, SettingAction::HardcoverSync\n'
@@ -214,17 +153,17 @@ def patch_settings_cpp(repo_dir):
 
     if 'SettingAction::HardcoverSync' not in content:
         anchors = [
-            # After smallerFontsMode push (both other plugins installed)
+
             '  pluginsSettings.push_back(SettingInfo::Enum(\n'
             '    StrId::STR_NONE_OPT, &CrossPointSettings::smallerFontsMode,\n'
             '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "smallerFontsMode"\n'
             '  ));\n',
-            # After darkModeState push (only darkmode installed)
+
             '  pluginsSettings.push_back(SettingInfo::Enum(\n'
             '    StrId::STR_NONE_OPT, &CrossPointSettings::darkModeState,\n'
             '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT}, "darkModeState"\n'
             '  ));\n',
-            # No other plugins: append after CustomiseStatusBar push
+
             '  readerSettings.push_back(SettingInfo::Action(StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar));\n',
         ]
         for anchor in anchors:
@@ -232,7 +171,6 @@ def patch_settings_cpp(repo_dir):
                 content = content.replace(anchor, anchor + hardcover_push)
                 break
 
-    # ---- case 4 -> pluginsSettings (if not done yet) -----------------------
     if 'case 4:\n        currentSettings = &pluginsSettings;' not in content:
         content = content.replace(
             '      case 3:\n        currentSettings = &systemSettings;\n        break;',
@@ -240,7 +178,6 @@ def patch_settings_cpp(repo_dir):
             '      case 4:\n        currentSettings = &pluginsSettings;\n        break;'
         )
 
-    # ---- "Plugins" tab label (if not done yet) -----------------------------
     if '"Plugins"' not in content:
         content = content.replace(
             '  std::vector<TabInfo> tabs;\n'
@@ -256,7 +193,6 @@ def patch_settings_cpp(repo_dir):
             '  }'
         )
 
-    # ---- nextCatLabel fix (if not done yet) --------------------------------
     if 'nextCatLabel' not in content:
         content = content.replace(
             '  const auto confirmLabel = (selectedSettingIndex == 0)\n'
@@ -267,10 +203,6 @@ def patch_settings_cpp(repo_dir):
             '  const auto confirmLabel = (selectedSettingIndex == 0) ? nextCatLabel : tr(STR_TOGGLE);'
         )
 
-    # ---- Row label lambda --------------------------------------------------
-    # ACTION rows never have a key, so we must match on s.action, not s.key.
-    # The darkmode patch already converted the lambda to the multi-line form
-    # and added key-based checks. We extend it with our action-based check.
     hardcover_label_line = (
         '        if (s.type == SettingType::ACTION &&\n'
         '            s.action == SettingAction::HardcoverSync) return "Hardcover Progress";\n'
@@ -278,7 +210,7 @@ def patch_settings_cpp(repo_dir):
 
     if 'Hardcover Progress' not in content:
         if 'selectedCategoryIndex == 4' in content:
-            # Lambda already patched by another plugin - insert before the closing return.
+
             closing = (
                 '      }\n'
                 '      return std::string(I18N.get(settings[index].nameId));\n'
@@ -309,8 +241,7 @@ def patch_settings_cpp(repo_dir):
                         content = content.replace(cl, hardcover_label_line + cl, 1)
                         break
         else:
-            # No other plugin has patched the lambda yet - create it from scratch.
-            # Exact line from real unpatched file (6 leading spaces):
+
             old_lambda = (
                 '      [&settings](int index) { return std::string(I18N.get(settings[index].nameId)); }, nullptr, nullptr,'
             )
@@ -325,38 +256,46 @@ def patch_settings_cpp(repo_dir):
             )
             content = content.replace(old_lambda, new_lambda)
 
-    # ---- Value text: "Sync" for the HardcoverSync action row ---------------
+    hardcover_value_block = (
+        '        if (setting.type == SettingType::ACTION &&\n'
+        '            setting.action == SettingAction::HardcoverSync) {\n'
+        '          valueText = "Sync";\n'
+        '        } else '
+    )
     if 'SettingAction::HardcoverSync) {\n          valueText = "Sync"' not in content:
-        content = content.replace(
-            '        if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {',
+        for value_anchor in [
             '        if (setting.type == SettingType::ACTION &&\n'
-            '            setting.action == SettingAction::HardcoverSync) {\n'
+            '            setting.action == SettingAction::GoodreadsSync) {\n'
             '          valueText = "Sync";\n'
-            '        } else if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {'
-        )
+            '        } else if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {',
+            '        if (setting.type == SettingType::TOGGLE && setting.valuePtr != nullptr) {',
+        ]:
+            if value_anchor in content:
+                content = content.replace(value_anchor, hardcover_value_block + value_anchor)
+                break
 
-    # ---- HardcoverSync case in toggleCurrentSetting switch -----------------
-    content = content.replace(
-        '      case SettingAction::Language:\n'
-        '        startActivityForResult(std::make_unique<LanguageSelectActivity>(renderer, mappedInput), resultHandler);\n'
-        '        break;\n'
-        '      case SettingAction::None:',
-        '      case SettingAction::Language:\n'
-        '        startActivityForResult(std::make_unique<LanguageSelectActivity>(renderer, mappedInput), resultHandler);\n'
-        '        break;\n'
+    hardcover_case = (
         '      case SettingAction::HardcoverSync:\n'
         '        startActivityForResult(std::make_unique<HardcoverSyncActivity>(renderer, mappedInput), resultHandler);\n'
         '        break;\n'
-        '      case SettingAction::None:'
     )
+    if 'case SettingAction::HardcoverSync:' not in content:
+        for anchor in [
+            '      case SettingAction::GoodreadsSync:\n'
+            '        startActivityForResult(std::make_unique<GoodreadsSyncActivity>(renderer, mappedInput), resultHandler);\n'
+            '        break;\n'
+            '      case SettingAction::None:',
+            '      case SettingAction::Language:\n'
+            '        startActivityForResult(std::make_unique<LanguageSelectActivity>(renderer, mappedInput), resultHandler);\n'
+            '        break;\n'
+            '      case SettingAction::None:',
+        ]:
+            if anchor in content:
+                content = content.replace(anchor, hardcover_case + anchor)
+                break
 
     write_file(path, content)
     print("  SettingsActivity.cpp patched.")
-
-
-# ---------------------------------------------------------------------------
-# CrossPointWebServer.cpp  - expose hardcoverApiToken + Hardcover label
-# ---------------------------------------------------------------------------
 
 def patch_web_server(repo_dir):
     path    = find_first("CrossPointWebServer.cpp", repo_dir)
@@ -373,7 +312,6 @@ def patch_web_server(repo_dir):
         '      }\n'
     )
 
-    # Try to insert inside the existing s.key block added by darkmode patch
     if 'if (s.key) {' in content and 'darkModeState' in content:
         content = content.replace(
             '      if (strcmp(s.key, "darkModeState") == 0) {\n',
@@ -381,7 +319,7 @@ def patch_web_server(repo_dir):
             '      if (strcmp(s.key, "darkModeState") == 0) {\n'
         )
     else:
-        # No darkmode patch present - add our own block
+
         content = content.replace(
             '    doc["category"] = I18N.get(s.category);\n'
             '\n'
@@ -398,17 +336,9 @@ def patch_web_server(repo_dir):
     write_file(path, content)
     print("  CrossPointWebServer.cpp patched.")
 
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 def patch(repo_dir: str, yes_all: bool = False):
     plugin_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # ---- Resolve API token from ~/.hardcover or prompt ---------------------
-    # The token prompt is always shown even with --yes, since it is required
-    # input, not an optional confirmation.
     hardcover_file = os.path.expanduser("~/.hardcover")
     token = ""
 
@@ -459,7 +389,6 @@ def patch(repo_dir: str, yes_all: bool = False):
     print("  Patching CrossPointWebServer.cpp (web UI)...")
     patch_web_server(repo_dir)
 
-    # ---- Verification ------------------------------------------------------
     import glob as _glob
     cpp_results = _glob.glob(os.path.join(repo_dir, "**", "SettingsActivity.cpp"), recursive=True)
     if cpp_results:
@@ -479,7 +408,6 @@ def patch(repo_dir: str, yes_all: bool = False):
         if not all_ok:
             sys.exit("ERROR: One or more Hardcover patch checks failed.")
         print("  Hardcover plugin patch verified OK.")
-
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

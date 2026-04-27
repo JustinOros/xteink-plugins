@@ -15,8 +15,9 @@ class HardcoverSyncActivity final : public Activity {
   void render(RenderLock&&) override;
 
  private:
-  enum State { SYNCING, DONE };
-  State state = SYNCING;
+  enum State { CONNECTING, SYNCING, DONE };
+  State state = CONNECTING;
   HardcoverPlugin::SyncResult result = HardcoverPlugin::SyncResult::OK;
   void doSync();
+  void startWifiThenSync();
 };
