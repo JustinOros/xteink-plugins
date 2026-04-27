@@ -149,8 +149,9 @@ void LockscreenActivity::render(RenderLock&&) {
 
     const int cardX = CARD_MARGIN;
     const int cardY = CARD_MARGIN;
-    const int cardW = screenW - 2 * CARD_MARGIN;
-    const int cardH = screenH - 2 * CARD_MARGIN;
+    const auto& metrics = UITheme::getInstance().getMetrics();
+    const int cardW = screenW - 2 * CARD_MARGIN - 5;
+    const int cardH = screenH - 2 * CARD_MARGIN - metrics.buttonHintsHeight;
 
     const int titleY     = cardY + 36;
     const int inputY     = cardY + 110;
@@ -175,6 +176,19 @@ void LockscreenActivity::render(RenderLock&&) {
         char msg[48];
         snprintf(msg, sizeof(msg), "Incorrect PIN. %d attempt(s) remaining.", MAX_ATTEMPTS - attempts_);
         renderer.drawCenteredText(UI_10_FONT_ID, cardY + cardH - 28, msg);
+    }
+
+    GUI.drawButtonHints(renderer, "Delete", "Select", "Left", "Right");
+    GUI.drawSideButtonHints(renderer, "Up", "Down");
+
+    {
+        constexpr int buttonWidth  = 30;
+        constexpr int buttonHeight = 60;
+        constexpr int powerButtonY = 135;
+        const int x = screenW - buttonWidth;
+        renderer.drawRoundedRect(x, powerButtonY, buttonWidth, buttonHeight, 1, 6, true, false, true, false, true);
+        const int textWidth = renderer.getTextWidth(SMALL_FONT_ID, "Select");
+        renderer.drawTextRotated90CW(SMALL_FONT_ID, x, powerButtonY + (buttonHeight + textWidth) / 2, "Select");
     }
 
     renderer.displayBuffer();
