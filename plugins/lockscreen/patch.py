@@ -142,7 +142,7 @@ def patch_settings_cpp(repo_dir):
     path    = find_first("SettingsActivity.cpp", repo_dir)
     content = read_file(path)
 
-    if '"LockscreenPlugin.h"' in content and "lockscreenPinHash" in content and '"lockscreenMode") return "Lockscreen"' in content:
+    if '"LockscreenPlugin.h"' in content and 'lockscreenPinHash' in content and '"lockscreenMode") return "Lockscreen"' in content:
         print("  SettingsActivity.cpp already patched, skipping.")
         return
 
@@ -166,62 +166,32 @@ def patch_settings_cpp(repo_dir):
         changed = True
 
     if 'pluginsSettings.clear()' not in content:
-        content = content.replace(
+        result = content.replace(
             '  systemSettings.clear();\n',
-            '  systemSettings.clear();\n'
-            '  pluginsSettings.clear();\n'
-            '  for (const auto& setting : getSettingsList()) {\n'
-            '    if (setting.key && std::string(setting.key) == "lockscreenMode") {\n'
-            '      pluginsSettings.push_back(setting);\n'
-            '    }\n'
-            '  }\n'
+            '  systemSettings.clear();\n  pluginsSettings.clear();\n'
         )
-        changed = True
-    elif 'pluginsSettings.push_back' not in content:
-        content = content.replace(
-            '  pluginsSettings.clear();\n',
-            '  pluginsSettings.clear();\n'
-            '  for (const auto& setting : getSettingsList()) {\n'
-            '    if (setting.key && std::string(setting.key) == "lockscreenMode") {\n'
-            '      pluginsSettings.push_back(setting);\n'
-            '    }\n'
-            '  }\n'
-        )
-        changed = True
-    elif '"lockscreenMode") {\n      pluginsSettings.push_back' not in content:
-        content = content.replace(
-            '  for (const auto& setting : getSettingsList()) {\n'
-            '    if (setting.key && std::string(setting.key) == "lockscreenMode") {\n'
-            '      pluginsSettings.push_back(setting);\n'
-            '    }\n'
-            '  }\n'
-            '\n'
-            '  for (const auto& setting : getSettingsList()) {',
-            '  for (const auto& setting : getSettingsList()) {\n'
-            '    if (setting.key && std::string(setting.key) == "lockscreenMode") {\n'
-            '      pluginsSettings.push_back(setting);\n'
-            '    }\n'
-            '  }\n'
-            '\n'
-            '  for (const auto& setting : getSettingsList()) {'
-        )
-        # If pluginsSettings.push_back exists from another plugin but not lockscreen,
-        # append after the existing population loop
-        if '"lockscreenMode") {\n      pluginsSettings.push_back' not in content:
-            import re
-            content = re.sub(
-                r'(  pluginsSettings\.clear\(\);(\n  for.*?push_back.*?\n  \}\n)*)',
-                lambda m: m.group(0) +
-                    '  for (const auto& setting : getSettingsList()) {\n'
-                    '    if (setting.key && std::string(setting.key) == "lockscreenMode") {\n'
-                    '      pluginsSettings.push_back(setting);\n'
-                    '    }\n'
-                    '  }\n',
-                content,
-                count=1,
-                flags=re.DOTALL
-            )
-        changed = True
+        if 'pluginsSettings.clear()' in result:
+            content = result
+            changed = True
+
+    lockscreen_push = (
+        '  pluginsSettings.push_back(SettingInfo::Enum(\n'
+        '    StrId::STR_NONE_OPT, &CrossPointSettings::lockscreenMode,\n'
+        '    {StrId::STR_NONE_OPT, StrId::STR_NONE_OPT},\n'
+        '    "lockscreenMode", StrId::STR_NONE_OPT\n'
+        '  ));\n'
+    )
+
+    if '"lockscreenMode", StrId::STR_NONE_OPT' not in content:
+        for anchor in [
+            '  selectedCategoryIndex = 0;\n  selectedSettingIndex = 0;',
+            '  selectedCategoryIndex = 0;',
+            '  currentSettings = &displaySettings;',
+        ]:
+            if anchor in content:
+                content = content.replace(anchor, lockscreen_push + anchor, 1)
+                changed = True
+                break
 
     if 'case 4:' not in content:
         content = content.replace(
@@ -271,32 +241,35 @@ def patch_settings_cpp(repo_dir):
         )
         changed = True
     elif '"lockscreenMode") return "Lockscreen"' not in content:
-        for s_decl in [
-            '        const auto& s = settings[index];\n',
-            '          const auto& s = settings[index];\n',
-        ]:
-            if s_decl in content:
-                indent = s_decl[:len(s_decl) - len(s_decl.lstrip())]
-                content = content.replace(
-                    s_decl,
-                    s_decl + indent + 'if (s.key && std::string(s.key) == "lockscreenMode") return "Lockscreen";\n',
-                    1
-                )
-                break
-        changed = True
+        import re
+        result = re.sub(
+            r'(      if \(selectedCategoryIndex == 4\) \{.*?)(      \})',
+            lambda m: m.group(1) + '        if (s.key && std::string(s.key) == "lockscreenMode") return "Lockscreen";\n' + m.group(2),
+            content,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if result != content:
+            content = result
+            changed = True
 
     if 'LockscreenPlugin::modeName' not in content:
-        content = content.replace(
-            '          } else {\n'
-            '            valueText = I18N.get(setting.enumValues[value]);\n'
-            '          }',
-            '          } else if (setting.key && std::string(setting.key) == "lockscreenMode") {\n'
-            '            valueText = LockscreenPlugin::modeName(static_cast<LockscreenMode>(value));\n'
-            '          } else {\n'
-            '            valueText = I18N.get(setting.enumValues[value]);\n'
-            '          }'
+        import re
+        lockscreen_value = (
+            '        if (setting.type == SettingType::ENUM &&\n'
+            '            setting.key && std::string(setting.key) == "lockscreenMode") {\n'
+            '          valueText = LockscreenPlugin::modeName(static_cast<LockscreenMode>(SETTINGS.lockscreenMode));\n'
+            '        } else '
         )
-        changed = True
+        result = re.sub(
+            r'(        if \(setting\.type == SettingType::(?:ACTION|TOGGLE|ENUM))',
+            lockscreen_value + r'\1',
+            content,
+            count=1,
+        )
+        if result != content:
+            content = result
+            changed = True
 
     if 'lockscreenPinHash' not in content:
         content = content.replace(
@@ -327,6 +300,7 @@ def patch_settings_cpp(repo_dir):
         print("  SettingsActivity.cpp patched.")
     else:
         print("  SettingsActivity.cpp already patched, skipping.")
+
 
 def patch_web_server(repo_dir):
     path    = find_first("CrossPointWebServer.cpp", repo_dir)
@@ -411,18 +385,31 @@ def patch_main_cpp(repo_dir):
         '  }\n'
     )
 
-    content = content.replace(
-        '  RECENT_BOOKS.loadFromFile();\n'
-        '\n'
-        '  if (HalSystem::isRebootFromPanic())',
-        '  RECENT_BOOKS.loadFromFile();\n'
-        + lockscreen_block
-        + '\n'
-        '  if (HalSystem::isRebootFromPanic())'
-    )
+    anchor = '  RECENT_BOOKS.loadFromFile();\n\n  if (HalSystem::isRebootFromPanic())'
+    if anchor in content:
+        content = content.replace(
+            anchor,
+            '  RECENT_BOOKS.loadFromFile();\n' + lockscreen_block + '\n  if (HalSystem::isRebootFromPanic())'
+        )
+    else:
+        idx = content.find('RECENT_BOOKS')
+        print('  DIAG main.cpp around RECENT_BOOKS:', repr(content[max(0,idx-50):idx+300]))
+        import re
+        m = re.search(r'RECENT_BOOKS\.loadFromFile\(\);.*?\n(\s*\n)*(\s*if)', content, re.DOTALL)
+        if m:
+            actual_anchor = content[m.start():m.end()]
+            content = content.replace(actual_anchor, '  RECENT_BOOKS.loadFromFile();\n' + lockscreen_block + '\n' + content[m.end()-len(m.group(2)):m.end()])
+            print('  main.cpp lockscreen block inserted via regex.')
+        else:
+            print('  WARNING: could not find RECENT_BOOKS anchor in main.cpp')
 
     write_file(path, content)
-    print("  main.cpp patched.")
+    has_block = "LockscreenActivity lockAct" in content
+    has_sleep = "enterDeepSleep" in content
+    if has_block:
+        idx2 = content.find("LockscreenActivity lockAct")
+        print("  DIAG lockscreen block context:", repr(content[max(0,idx2-200):idx2+50]))
+    print(f"  main.cpp patched. lockscreen_block={has_block} enterDeepSleep={has_sleep}")
 
 
 def patch_settings_html(repo_dir):
