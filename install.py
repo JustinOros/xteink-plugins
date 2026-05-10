@@ -8,6 +8,7 @@ import glob
 import importlib.util
 import argparse
 import inspect
+import datetime
 
 REPO_URL    = "https://github.com/crosspoint-reader/crosspoint-reader.git"
 REPO_DIR    = "crosspoint-reader"
@@ -61,6 +62,63 @@ def get_local_head_sha():
     except Exception:
         pass
     return None
+
+
+def backup_device():
+    print("  Backup your current firmware before flashing? [y/N]: ", end="", flush=True)
+    answer = input().strip().lower()
+    if answer not in ("y", "yes"):
+        print("  Skipping backup.")
+        return
+
+    print()
+    print("  Ensure your xteink device is connected via USB and awake.")
+    input("  Press Enter when ready... ")
+
+    ports = detect_serial_ports()
+
+    if not ports:
+        print("  No USB serial ports detected — skipping backup.")
+        return
+
+    cu_ports = [(d, desc) for d, desc in ports if d.startswith("/dev/cu.")]
+    recommended = cu_ports[0][0] if cu_ports else ports[0][0]
+
+    print(f"\n  Found {len(ports)} serial port(s):")
+    for i, (device, desc) in enumerate(ports, 1):
+        tag = "  ← recommended" if device == recommended else ""
+        print(f"    {i}. {device}  —  {desc}{tag}")
+
+    choice = input(f"\n  Press ENTER to use {recommended}, or enter 1-{len(ports)}: ").strip()
+
+    if not choice:
+        port = recommended
+    elif choice.isdigit() and 0 <= int(choice) - 1 < len(ports):
+        port = ports[int(choice) - 1][0]
+    else:
+        print("  Invalid choice — skipping backup.")
+        return
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d.%H%M%S")
+    filename  = f"backup.{timestamp}.bin"
+    print(f"\n  Reading flash from {port} → {filename} ...")
+
+    result = subprocess.run(
+        f"esptool --port {port} read-flash 0x0 ALL {filename}",
+        shell=True,
+    )
+
+    if result.returncode == 0:
+        print(f"  ✓ Backup saved to {filename}")
+        print()
+        print(f"  To restore your device to this backup, run:")
+        print(f"  esptool --port {port} write-flash 0x0 {filename}")
+    else:
+        print("  ✗ Backup failed. You can continue or abort and retry manually.")
+        if input("  Continue without backup? [y/N]: ").strip().lower() not in ("y", "yes"):
+            print("  Aborted.")
+            sys.exit(0)
+    print()
 
 
 def clone_repo(force: bool = True):
@@ -313,6 +371,7 @@ def main():
         print("  Aborted.")
         sys.exit(0)
     print()
+    backup_device()
     clone_repo(force=not args.no_reclone)
     clear_plugin_caches()
     apply_plugins(yes_all=args.yes)
