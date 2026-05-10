@@ -104,7 +104,7 @@ def backup_device():
     print(f"\n  Reading flash from {port} → {filename} ...")
 
     result = subprocess.run(
-        f"esptool --port {port} read-flash 0x0 ALL {filename}",
+        f"esptool --port {port} --baud 921600 read-flash 0x0 ALL {filename}",
         shell=True,
     )
 
@@ -112,7 +112,7 @@ def backup_device():
         print(f"  ✓ Backup saved to {filename}")
         print()
         print(f"  To restore your device to this backup, run:")
-        print(f"  esptool --port {port} write-flash 0x0 {filename}")
+        print(f"  esptool --port {port} --baud 921600 write-flash 0x0 {filename}")
     else:
         print("  ✗ Backup failed. You can continue or abort and retry manually.")
         if input("  Continue without backup? [y/N]: ").strip().lower() not in ("y", "yes"):
