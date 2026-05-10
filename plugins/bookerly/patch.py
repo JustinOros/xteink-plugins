@@ -265,8 +265,8 @@ def patch_settings_activity_h(repo_dir):
         )
 
     content = content.replace(
-        '  Language,\n};',
-        '  Language,\n  BookerlyInstalled,\n};'
+        '  PongGame,\n};',
+        '  PongGame,\n  BookerlyInstalled,\n};'
     )
 
     write_file(path, content)
