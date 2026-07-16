@@ -10,11 +10,6 @@
 
 A plugin system for customizing and extending https://github.com/crosspoint-reader/crosspoint-reader firmware on your xteink device. Plugins are applied as source-level patches before the firmware is compiled and flashed.
 
-> **Note on this revision:** the plugin installer was rewritten from independent per-plugin `patch.py` scripts (which broke when installed as anything other than "all of them, in this exact order") to a shared declarative framework - see [Why plugin.py instead of patch.py](#why-pluginpy-instead-of-patchpy). Every plugin now installs correctly alone or in any combination. A few honest notes on functional gaps found and decisions made along the way:
-> - **Smaller Fonts** actually only implements two states (Disabled/Enabled - one size step down) even though the UI text below describes three; the underlying code never distinguished a "Smallest" tier or handled OpenDyslexic. This rewrite matches what the code actually does rather than inventing the missing tier.
-> - **Bookerly** generates 12/14/16/18pt only; the 8pt/10pt claim below wasn't actually wired up in the original code either. Bookerly also won't appear in the font picker on devices that also have SD-card custom fonts installed (a narrow pre-existing edge case).
-> - **GitHub Sync**'s original boot hook only ran inside one rare boot path (quick-resume with no cached frame), so it silently never synced on most ordinary boots - it's now a proper once-per-boot hook. Its install-time NVS credential pre-seeding was dropped for simplicity; configure it via Settings → Plugins → GitHub Sync after flashing instead.
-
 ## Plugins
 
 ### Dark Mode

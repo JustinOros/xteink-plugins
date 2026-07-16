@@ -1,41 +1,44 @@
 #include "GitHubSync.h"
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <Preferences.h>
 #include <WiFi.h>
 #include <Logging.h>
+#include "CrossPointSettings.h"
 #include "SDCardManager.h"
 
-#define GH_PREFS_NS   "github_sync"
-#define GH_KEY_USER   "username"
-#define GH_KEY_PAT    "pat"
-#define GH_KEY_REPO   "repo"
-#define GH_KEY_BRANCH "branch"
 #define GH_SHA_DIR    "/.crosspoint/github_sha/"
 #define GH_BOOKS_DIR  "/"
 #define GH_SLEEP_BMP  "sleep.bmp"
 #define GH_SLEEP_PATH "/sleep.bmp"
 #define GH_API_BASE   "https://api.github.com"
 
+namespace {
+void setField(char* field, size_t fieldSize, const std::string& value) {
+    strncpy(field, value.c_str(), fieldSize - 1);
+    field[fieldSize - 1] = '\0';
+}
+}  // namespace
+
+// Config now lives in CrossPointSettings (persisted via SETTINGS.saveToFile()/
+// loadFromFile(), same as every other plugin setting) instead of a private NVS
+// namespace, so it's reachable through the standard settings list - which is
+// what makes it show up in the web UI's Settings page alongside Dark Mode,
+// Smaller Fonts, etc. On-device editing via GitHubSyncSettingsActivity is
+// unaffected since it only goes through this struct-based API.
 bool GitHubSync::loadConfig(GitHubSyncConfig &cfg) {
-    Preferences prefs;
-    prefs.begin(GH_PREFS_NS, true);
-    cfg.username = prefs.getString(GH_KEY_USER, "").c_str();
-    cfg.pat      = prefs.getString(GH_KEY_PAT,  "").c_str();
-    cfg.repo     = prefs.getString(GH_KEY_REPO,   "xteink").c_str();
-    cfg.branch   = prefs.getString(GH_KEY_BRANCH, "main").c_str();
-    prefs.end();
+    cfg.username = SETTINGS.githubUsername;
+    cfg.pat      = SETTINGS.githubPat;
+    cfg.repo     = SETTINGS.githubRepo[0] ? SETTINGS.githubRepo : "xteink";
+    cfg.branch   = SETTINGS.githubBranch[0] ? SETTINGS.githubBranch : "main";
     return !cfg.username.empty() && !cfg.pat.empty();
 }
 
 void GitHubSync::saveConfig(const GitHubSyncConfig &cfg) {
-    Preferences prefs;
-    prefs.begin(GH_PREFS_NS, false);
-    prefs.putString(GH_KEY_USER,   cfg.username.c_str());
-    prefs.putString(GH_KEY_PAT,    cfg.pat.c_str());
-    prefs.putString(GH_KEY_REPO,   cfg.repo.c_str());
-    prefs.putString(GH_KEY_BRANCH, cfg.branch.c_str());
-    prefs.end();
+    setField(SETTINGS.githubUsername, sizeof(SETTINGS.githubUsername), cfg.username);
+    setField(SETTINGS.githubPat,      sizeof(SETTINGS.githubPat),      cfg.pat);
+    setField(SETTINGS.githubRepo,     sizeof(SETTINGS.githubRepo),     cfg.repo);
+    setField(SETTINGS.githubBranch,   sizeof(SETTINGS.githubBranch),   cfg.branch);
+    SETTINGS.saveToFile();
 }
 
 bool GitHubSync::isConfigured() {
