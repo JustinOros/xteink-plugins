@@ -10,6 +10,11 @@
 
 A plugin system for customizing and extending https://github.com/crosspoint-reader/crosspoint-reader firmware on your xteink device. Plugins are applied as source-level patches before the firmware is compiled and flashed.
 
+> **Note on this revision:** the plugin installer was rewritten from independent per-plugin `patch.py` scripts (which broke when installed as anything other than "all of them, in this exact order") to a shared declarative framework - see [Why plugin.py instead of patch.py](#why-pluginpy-instead-of-patchpy). Every plugin now installs correctly alone or in any combination. A few honest notes on functional gaps found and decisions made along the way:
+> - **Smaller Fonts** actually only implements two states (Disabled/Enabled - one size step down) even though the UI text below describes three; the underlying code never distinguished a "Smallest" tier or handled OpenDyslexic. This rewrite matches what the code actually does rather than inventing the missing tier.
+> - **Bookerly** generates 12/14/16/18pt only; the 8pt/10pt claim below wasn't actually wired up in the original code either. Bookerly also won't appear in the font picker on devices that also have SD-card custom fonts installed (a narrow pre-existing edge case).
+> - **GitHub Sync**'s original boot hook only ran inside one rare boot path (quick-resume with no cached frame), so it silently never synced on most ordinary boots - it's now a proper once-per-boot hook. Its install-time NVS credential pre-seeding was dropped for simplicity; configure it via Settings → Plugins → GitHub Sync after flashing instead.
+
 ## Plugins
 
 ### Dark Mode
@@ -30,10 +35,9 @@ Adds a Smaller Fonts option to the Plugins settings tab and the web interface Se
 Mode | Effect
 -----|--------
 Disabled | No change (default)
-Smaller | Drops the current font size down by one step (e.g. Bookerly 16 → 14)
-Smallest | Drops the current font size down by two steps (e.g. Bookerly 16 → 12)
+Enabled | Drops the current font size down by one step (e.g. Bookerly 16 → 14)
 
-Supports Bookerly, Noto Sans, and OpenDyslexic. The plugin also generates and embeds Bookerly at 8pt and 10pt — sizes not included in the stock firmware.
+Supports Noto Serif, Noto Sans, and Bookerly.
 
 ---
 
@@ -57,10 +61,8 @@ Features:
 Adds the Bookerly font to your xteink device, available as a reader font option alongside the built-in Noto Serif, Noto Sans, and OpenDyslexic fonts.
 
 - Generates Bookerly at 12pt, 14pt, 16pt, and 18pt during install
-- Also generates 8pt and 10pt variants for use with the Smaller Fonts plugin
 - Selectable via Settings → Reader → Font
-
-Requires the Smaller Fonts plugin to be installed if you want to use Bookerly at sizes below 12pt.
+- Works with the Smaller Fonts plugin to drop one size step down (e.g. 16 → 14)
 
 ---
 
@@ -89,8 +91,7 @@ Syncs `.epub` files from a private GitHub repository to your device on boot.
 
 - Downloads new or updated books from your configured repo automatically on startup
 - Skips files already on the device that haven't changed
-- Configurable via Settings → Plugins → GitHub Sync (username, personal access token, repo, branch)
-- Credentials can also be pre-configured during install
+- Configurable via Settings → Plugins → GitHub Sync (username, personal access token, repo, branch), after flashing
 
 Requirements:
 - Active internet connection via WiFi
@@ -148,33 +149,46 @@ Note: This script modifies and flashes custom firmware to your device. The autho
 
 ```
 xteink-plugins/
-├── install.py              # Interactive installer: clone → patch → build → flash
+├── install.py              # Interactive installer: clone → select → apply → build → flash
+├── framework/               # Shared plugin engine (see "Adding a Plugin" below)
+│   ├── manifest.py          # Declarative contribution types plugins are built from
+│   ├── engine.py             # Applies every selected plugin's contributions in one pass
+│   └── discovery.py          # Finds plugin.py files under plugins/
+├── test_harness.py          # Applies every plugin, alone and in combination, against a
+│                             # fresh clone and reports pass/fail - run this after adding
+│                             # or editing a plugin
 └── plugins/
     ├── darkmode/
-    │   ├── patch.py
-    │   ├── DarkModePlugin.h/.cpp
-    │   └── DarkModeSettingsPage.h/.cpp
+    │   ├── plugin.py
+    │   └── DarkModePlugin.h/.cpp
     ├── smallerfonts/
-    │   ├── patch.py
-    │   ├── SmallerFontsPlugin.h/.cpp
-    │   └── SmallerFontsSettingsPage.h/.cpp
+    │   ├── plugin.py
+    │   └── SmallerFontsPlugin.h/.cpp
     ├── lockscreen/
-    │   ├── patch.py
+    │   ├── plugin.py
     │   ├── LockscreenPlugin.h/.cpp
-    │   ├── LockscreenSettingsPage.h/.cpp
     │   └── LockscreenActivity.h/.cpp
     ├── bookerly/
-    │   ├── patch.py
+    │   ├── plugin.py
     │   └── BookerlyPlugin.h/.cpp
     ├── hardcover/
-    │   ├── patch.py
+    │   ├── plugin.py
     │   ├── HardcoverPlugin.h/.cpp
     │   └── HardcoverSyncActivity.h/.cpp
-    └── githubsync/
-        ├── patch.py
-        ├── GitHubSync.h/.cpp
-        └── GitHubSyncSettingsActivity.h/.cpp
+    ├── githubsync/
+    │   ├── plugin.py
+    │   ├── GitHubSync.h/.cpp
+    │   └── GitHubSyncSettingsActivity.h/.cpp
+    └── pong/
+        ├── plugin.py
+        └── PongActivity.h/.cpp
 ```
+
+### Why plugin.py instead of patch.py
+
+Previously every plugin's `patch.py` directly rewrote CrossPoint's shared source files with hand-written string edits, and each one had to hardcode knowledge of every *other* plugin's edits to land in the right place (e.g. darkmode's patch literally contained smallerfonts' settings entry). That's fine as long as you always install every plugin together in the same order, but install any subset, or add a new plugin later, and those hardcoded assumptions stop holding - settings referenced fields that were never declared, and the build failed.
+
+`plugin.py` instead returns a declarative `PluginManifest` (see `framework/manifest.py`) describing *what* the plugin needs - a settings field, a row in the on-device "Plugins" tab, a new `SettingAction`, a boot-time hook, and so on. A single engine (`framework/engine.py`) collects the manifests of only the plugins you actually selected and writes each shared file exactly once, built fresh from that selection. Installing 1 plugin or all 7, in any combination, produces internally consistent output every time.
 
 ## Troubleshooting
 
@@ -210,7 +224,9 @@ Restart your terminal and re-run install.py.
 
 ## Adding a Plugin
 
-1. Create a new directory under plugins/ with your plugin's name.
-2. Add a patch.py file with a patch(repo_dir: str) function.
+1. Create a new directory under `plugins/` with your plugin's name.
+2. Add a `plugin.py` with a `get_manifest(ctx) -> PluginManifest` function. Use an existing plugin (e.g. `plugins/pong/plugin.py` for a simple action-row example, or `plugins/darkmode/plugin.py` for a settings-backed one) as a template. `framework/manifest.py` documents every contribution type: `SettingsField`, `PluginsTabEntry`, `SettingActionEnumValue`, `MainHook`, `ToggleHook`, `TranslationEntry`, and so on.
+3. List any plugin-owned `.h`/`.cpp` files under `source_files` so the installer copies them into the firmware tree - you don't touch any shared CrossPoint file directly.
+4. Run `python3 test_harness.py <path-to-a-crosspoint-reader-clone> /tmp/scratch <your-plugin-name>` (or `all` to check every plugin and combination) to confirm it applies cleanly alone and alongside everything else, before shipping it.
 
-The installer will automatically discover and offer to install any directory under plugins/ that contains a patch.py.
+The installer automatically discovers and offers to install any directory under `plugins/` that contains a `plugin.py` exposing `get_manifest`.

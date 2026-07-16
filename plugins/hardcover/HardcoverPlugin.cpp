@@ -119,7 +119,7 @@ std::string getIsbnFromEpub(Epub& epub, const std::string& path) {
 // ---- Progress reading -------------------------------------------------------
 
 int epubProgressPercent(const std::string& cachePath, int& outPage, Epub& epub) {
-    FsFile f;
+    HalFile f;
     if (!Storage.openFileForRead("HCV", (cachePath + "/progress.bin").c_str(), f))
         return -1;
     uint8_t data[6] = {};
@@ -178,7 +178,7 @@ void collectBooks(std::vector<InProgressBook>& inProgress, std::vector<InProgres
         std::string cachePath = buildCachePath(path);
 
         // Check progress.bin exists before loading the EPUB
-        FsFile f;
+        HalFile f;
         if (!Storage.openFileForRead("HCV", (cachePath + "/progress.bin").c_str(), f)) continue;
         f.close();
 
@@ -351,7 +351,7 @@ std::string readSessionCachePath(int userBookId) {
 }
 
 int loadCachedReadId(int userBookId) {
-    FsFile f;
+    HalFile f;
     std::string path = readSessionCachePath(userBookId);
     if (!Storage.openFileForRead("HCV", path.c_str(), f)) return 0;
     uint8_t data[4] = {};
@@ -362,7 +362,7 @@ int loadCachedReadId(int userBookId) {
 }
 
 void saveCachedReadId(int userBookId, int readId) {
-    FsFile f;
+    HalFile f;
     std::string path = readSessionCachePath(userBookId);
     if (!Storage.openFileForWrite("HCV", path.c_str(), f)) {
         LOG_ERR("HCV", "Could not save read session cache for user_book_id=%d", userBookId);
