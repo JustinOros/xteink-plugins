@@ -179,12 +179,6 @@ xteink-plugins/
         └── PongActivity.h/.cpp
 ```
 
-### Why plugin.py instead of patch.py
-
-Previously every plugin's `patch.py` directly rewrote CrossPoint's shared source files with hand-written string edits, and each one had to hardcode knowledge of every *other* plugin's edits to land in the right place (e.g. darkmode's patch literally contained smallerfonts' settings entry). That's fine as long as you always install every plugin together in the same order, but install any subset, or add a new plugin later, and those hardcoded assumptions stop holding - settings referenced fields that were never declared, and the build failed.
-
-`plugin.py` instead returns a declarative `PluginManifest` (see `framework/manifest.py`) describing *what* the plugin needs - a settings field, a row in the on-device "Plugins" tab, a new `SettingAction`, a boot-time hook, and so on. A single engine (`framework/engine.py`) collects the manifests of only the plugins you actually selected and writes each shared file exactly once, built fresh from that selection. Installing 1 plugin or all 7, in any combination, produces internally consistent output every time.
-
 ## Troubleshooting
 
 ### Linux: Permission denied when flashing
