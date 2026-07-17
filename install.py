@@ -22,6 +22,12 @@ ENVIRONMENTS = {
     "slim":       "No serial logging, smallest binary size",
 }
 
+BAUD_RATES = {
+    "1": ("115200", "Recommended - most reliable, avoids 'chip stopped responding'"),
+    "2": ("921600", "Faster - for those feeling froggy"),
+}
+DEFAULT_BAUD = "115200"
+
 
 def run(cmd, cwd=None, check=True):
     print(f"  $ {cmd}")
@@ -70,7 +76,7 @@ def find_backup_files():
     return sorted(glob.glob("backup.*.bin"), reverse=True)
 
 
-def restore_from_backup():
+def restore_from_backup(yes_all: bool = False):
     """If any backup.*.bin files are sitting in the current directory, offer
     to write one back to the device instead of proceeding with a fresh
     install. This always runs before backup_device() and, if the user goes
@@ -78,6 +84,10 @@ def restore_from_backup():
     continuing on to clone/patch/build/flash."""
     backups = find_backup_files()
     if not backups:
+        return
+
+    if yes_all:
+        print(f"  Found {len(backups)} existing backup(s), skipping restore (--yes).")
         return
 
     print(f"  Found {len(backups)} existing backup{'s' if len(backups) != 1 else ''}:")
@@ -152,7 +162,11 @@ def restore_from_backup():
             sys.exit("Aborted.")
 
 
-def backup_device():
+def backup_device(yes_all: bool = False):
+    if yes_all:
+        print("  Skipping device backup (--yes).")
+        return
+
     print("  Backup your current firmware before flashing? [Y/n]: ", end="", flush=True)
     answer = input().strip().lower()
     if answer not in ("", "y", "yes"):
@@ -423,13 +437,47 @@ def prompt_for_upload_port():
         print("  Please enter a valid port name.")
 
 
-def build_and_flash(environment: str):
+def prompt_for_baud_rate(override: str | None, yes_all: bool = False):
+    if override:
+        print(f"\n  Upload baud rate: {override} (--baud)")
+        return override
+
+    if yes_all:
+        print(f"\n  Upload baud rate: {DEFAULT_BAUD} (--yes)")
+        return DEFAULT_BAUD
+
+    print("\n  Select upload baud rate:")
+    for key, (rate, desc) in BAUD_RATES.items():
+        tag = "  ← default" if rate == DEFAULT_BAUD else ""
+        print(f"    {key}. {rate}  —  {desc}{tag}")
+
+    choice = input(
+        f"\n  Press ENTER for default ({DEFAULT_BAUD}), enter 1-{len(BAUD_RATES)}, "
+        "or type a custom rate: "
+    ).strip()
+
+    if not choice:
+        return DEFAULT_BAUD
+    if choice in BAUD_RATES:
+        return BAUD_RATES[choice][0]
+    if choice.isdigit():
+        return choice
+
+    print(f"  Invalid input, using default ({DEFAULT_BAUD}).")
+    return DEFAULT_BAUD
+
+
+def build_and_flash(environment: str, baud_rate: str):
     print(f"\nBuilding firmware with PlatformIO (environment: {environment})...")
     run(f"pio run --environment {environment}", cwd=REPO_DIR)
 
     port = prompt_for_upload_port()
 
-    print(f"\n  Flashing to {port}...")
+    local_ini = os.path.join(REPO_DIR, "platformio.local.ini")
+    with open(local_ini, "w") as f:
+        f.write(f"[env:{environment}]\nupload_speed = {baud_rate}\n")
+
+    print(f"\n  Flashing to {port} at {baud_rate} baud...")
     run(
         f"pio run --target upload --environment {environment} --upload-port {port}",
         cwd=REPO_DIR,
@@ -452,7 +500,18 @@ def parse_args():
     parser.add_argument(
         "-y", "--yes",
         action="store_true",
-        help="Auto-answer Y to all plugin install prompts",
+        help="Auto-answer Y to all plugin install prompts, and skip the "
+             "restore/backup prompts entirely (fast install, no backup)",
+    )
+    parser.add_argument(
+        "-b", "--baud",
+        default=None,
+        metavar="RATE",
+        help=(
+            "Upload baud rate override, skips the interactive prompt "
+            f"(default: {DEFAULT_BAUD}). Lower it (e.g. 115200) if flashing "
+            "fails with 'chip stopped responding'."
+        ),
     )
     parser.add_argument(
         "--no-reclone",
@@ -483,13 +542,14 @@ def main():
         print("  Aborted.")
         sys.exit(0)
     print()
-    restore_from_backup()
-    backup_device()
+    restore_from_backup(yes_all=args.yes)
+    backup_device(yes_all=args.yes)
     clone_repo(force=not args.no_reclone)
     clear_plugin_caches()
     chosen_plugins = select_plugins(yes_all=args.yes)
     apply_plugins(chosen_plugins, yes_all=args.yes)
-    build_and_flash(args.environment)
+    baud_rate = prompt_for_baud_rate(args.baud, yes_all=args.yes)
+    build_and_flash(args.environment, baud_rate)
     print("\nDone.")
 
 
