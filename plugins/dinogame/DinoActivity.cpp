@@ -190,11 +190,13 @@ bool DinoActivity::anyNonPowerPressed() const {
 
 bool DinoActivity::checkCollision() const {
     constexpr int INSET = 4;
+    constexpr int FRONT_INSET = 10;
+    constexpr int OBSTACLE_INSET_X = 10;
 
     int dw  = (DINO_GRID_W - DINO_COLLIDE_X_OFFSET) * BLOCK;
     int dh  = DINO_GRID_H * BLOCK;
     int dx0 = DINO_X + DINO_COLLIDE_X_OFFSET * BLOCK + INSET;
-    int dx1 = DINO_X + DINO_COLLIDE_X_OFFSET * BLOCK + dw - INSET;
+    int dx1 = DINO_X + DINO_COLLIDE_X_OFFSET * BLOCK + dw - FRONT_INSET;
     int dy0 = groundY_ - dh + (int)dinoY_ + INSET;
     int dy1 = groundY_ + (int)dinoY_ - INSET;
 
@@ -205,8 +207,8 @@ bool DinoActivity::checkCollision() const {
         int oh  = obstacleHeightPx(ob.type);
         int oy0 = groundY_ - oh;
         int oy1 = oy0 + oh;
-        int ox0 = (int)ob.x;
-        int ox1 = ox0 + ow;
+        int ox0 = (int)ob.x + OBSTACLE_INSET_X;
+        int ox1 = (int)ob.x + ow - OBSTACLE_INSET_X;
 
         if (dx0 < ox1 && dx1 > ox0 && dy0 < oy1 && dy1 > oy0) {
             return true;
