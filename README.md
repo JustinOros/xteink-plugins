@@ -95,7 +95,7 @@ Requirements:
 
 ---
 
-### Pong
+### Pong Game
 
 Adds a classic Pong game against a CPU opponent, launched from the Plugins settings tab.
 
