@@ -118,6 +118,17 @@ Adds the classic offline dinosaur runner as a full-screen game, launched from th
 
 ---
 
+### Snake Game
+
+Adds a classic Snake game sized to your device's screen, launched from the Plugins settings tab.
+
+- The 4 front buttons are fixed to Left / Right / Up / Down for this game, with on-screen labels above each button showing the mapping
+- Eat food to grow and score points; speed increases as your score climbs
+- Hitting a wall or yourself ends the game; any front button restarts and Power exits
+- Filling the entire board is a win
+
+---
+
 ## Requirements
 
 - Python 3.10+
@@ -213,9 +224,12 @@ xteink-plugins/
     ├── pong/
     │   ├── plugin.py
     │   └── PongActivity.h/.cpp
-    └── dinogame/
+    ├── dinogame/
+    │   ├── plugin.py
+    │   └── DinoActivity.h/.cpp
+    └── snakegame/
         ├── plugin.py
-        └── DinoActivity.h/.cpp
+        └── SnakeActivity.h/.cpp
 ```
 
 ## Troubleshooting
