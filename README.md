@@ -10,6 +10,8 @@
 
 A plugin system for customizing and extending https://github.com/crosspoint-reader/crosspoint-reader firmware on your xteink device. Plugins are applied as source-level patches before the firmware is compiled and flashed.
 
+Tested/working on the XTEINK X3 and X4 devices.
+
 ## Plugins
 
 ### Dark Mode
