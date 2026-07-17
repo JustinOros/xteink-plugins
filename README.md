@@ -10,8 +10,6 @@
 
 A plugin system for customizing and extending https://github.com/crosspoint-reader/crosspoint-reader firmware on your xteink device. Plugins are applied as source-level patches before the firmware is compiled and flashed.
 
-Tested/working on the XTEINK X3 and X4 devices.
-
 ## Plugins
 
 ### Dark Mode
@@ -97,6 +95,18 @@ Requirements:
 
 ---
 
+### Dino Game
+
+Adds the classic offline dinosaur runner as a full-screen game, launched from the Plugins settings tab.
+
+- Endless runner: jump the cacti as the game speeds up over time
+- Any button except Power jumps; Power exits the game
+- On Game Over, any button restarts and Power exits
+- A bird flies across the top of the screen for atmosphere - it's decorative only, no need to dodge it
+- Score is shown top-right and resets each session
+
+---
+
 ## Requirements
 
 - Python 3.10+
@@ -114,7 +124,7 @@ From the root of this repository, run:
 
 python3 install.py
 
-To auto-accept all plugin prompts, pass --yes (or -y):
+To auto-accept all plugin prompts and skip the restore/backup and baud rate prompts, pass --yes (or -y):
 
 python3 install.py --yes
 
@@ -123,22 +133,35 @@ By default this uses the default build environment. To use a different environme
 python3 install.py --environment slim
 python3 install.py --environment gh_release
 
-Flags can be combined:
-
-python3 install.py -y -e gh_release
-
 Environment | Description
 ------------|-------------
 default | Debug logging enabled, version from current git branch (recommended)
 gh_release | Info logging only, version hardcoded to release tag
 slim | No serial logging, smallest binary size
 
+Before flashing you'll be asked to pick an upload baud rate:
+
+Rate | Description
+-----|------------
+115200 | Recommended - most reliable, avoids "chip stopped responding" errors
+921600 | Faster - for those feeling froggy
+
+To skip the prompt, pass --baud (or -b):
+
+python3 install.py --baud 115200
+
+Flags can be combined:
+
+python3 install.py -y -e gh_release -b 115200
+
 The installer will:
 
-1. Clone the CrossPoint Reader source repository
-2. Prompt you to select which plugins to install and apply them as patches
-3. Build the firmware with PlatformIO
-4. Auto-detect your device's serial port and flash the firmware
+1. Offer to restore from a previous backup, if one exists in the current directory
+2. Offer to back up your current firmware before making any changes
+3. Clone the CrossPoint Reader source repository
+4. Prompt you to select which plugins to install and apply them as patches
+5. Build the firmware with PlatformIO
+6. Auto-detect your device's serial port, ask for an upload baud rate, and flash the firmware
 
 Note: This script modifies and flashes custom firmware to your device. The author accepts no responsibility for any damage that may occur to your device as a result of using this installer.
 
@@ -176,9 +199,12 @@ xteink-plugins/
     │   ├── plugin.py
     │   ├── GitHubSync.h/.cpp
     │   └── GitHubSyncSettingsActivity.h/.cpp
-    └── pong/
+    ├── pong/
+    │   ├── plugin.py
+    │   └── PongActivity.h/.cpp
+    └── dinogame/
         ├── plugin.py
-        └── PongActivity.h/.cpp
+        └── DinoActivity.h/.cpp
 ```
 
 ## Troubleshooting
