@@ -95,6 +95,17 @@ Requirements:
 
 ---
 
+### Pong
+
+Adds a classic Pong game against a CPU opponent, launched from the Plugins settings tab.
+
+- Left/Right (or Up/Down, Back/Confirm) move your paddle in full paddle-width steps
+- CPU controls the top paddle and tracks the ball
+- First to 7 points wins; any button exits the win/lose screen
+- Power always exits the game
+
+---
+
 ### Dino Game
 
 Adds the classic offline dinosaur runner as a full-screen game, launched from the Plugins settings tab.
