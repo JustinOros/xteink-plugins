@@ -67,10 +67,15 @@ bool SnakeActivity::isSnakeCell(int x, int y) const {
 void SnakeActivity::placeFood() {
     if (length_ >= cols_ * rows_) return;
 
+    int minX = (cols_ > 2) ? 1 : 0;
+    int maxX = (cols_ > 2) ? cols_ - 2 : cols_ - 1;
+    int minY = (rows_ > 2) ? 1 : 0;
+    int maxY = (rows_ > 2) ? rows_ - 2 : rows_ - 1;
+
     int fx, fy;
     do {
-        fx = random(0, cols_);
-        fy = random(0, rows_);
+        fx = random(minX, maxX + 1);
+        fy = random(minY, maxY + 1);
     } while (isSnakeCell(fx, fy));
 
     foodX_ = fx;
@@ -113,7 +118,8 @@ void SnakeActivity::updateGame() {
     int newY = snakeY_[headIdx_] + dy;
 
     if (newX < 0 || newX >= cols_ || newY < 0 || newY >= rows_) {
-        gameOver_ = true;
+        gameOver_   = true;
+        gameOverAt_ = millis();
         return;
     }
 
@@ -123,7 +129,8 @@ void SnakeActivity::updateGame() {
         if (!willEat && i == length_ - 1) continue;
         int idx = (headIdx_ + i) % MAX_SNAKE_LEN;
         if (snakeX_[idx] == newX && snakeY_[idx] == newY) {
-            gameOver_ = true;
+            gameOver_   = true;
+            gameOverAt_ = millis();
             return;
         }
     }
@@ -137,8 +144,9 @@ void SnakeActivity::updateGame() {
         score_ += POINTS_PER_FOOD;
 
         if (length_ >= cols_ * rows_) {
-            gameOver_ = true;
-            won_      = true;
+            gameOver_   = true;
+            won_        = true;
+            gameOverAt_ = millis();
             return;
         }
 
@@ -162,7 +170,8 @@ void SnakeActivity::loop() {
     }
 
     if (gameOver_) {
-        if (mappedInput.getPressedFrontButton() != -1) {
+        if (millis() - gameOverAt_ >= GAME_OVER_LOCKOUT_MS &&
+            mappedInput.getPressedFrontButton() != -1) {
             resetGame();
             renderPending_ = true;
             requestUpdate();
@@ -184,20 +193,49 @@ void SnakeActivity::loop() {
     }
 }
 
+void SnakeActivity::drawArrow(Dir dir, int cx, int cy, int size) const {
+    int half = size / 2;
+    int xs[3];
+    int ys[3];
+
+    switch (dir) {
+        case Dir::Left:
+            xs[0] = cx - half; ys[0] = cy;
+            xs[1] = cx + half; ys[1] = cy - half;
+            xs[2] = cx + half; ys[2] = cy + half;
+            break;
+        case Dir::Right:
+            xs[0] = cx + half; ys[0] = cy;
+            xs[1] = cx - half; ys[1] = cy - half;
+            xs[2] = cx - half; ys[2] = cy + half;
+            break;
+        case Dir::Up:
+            xs[0] = cx;        ys[0] = cy - half;
+            xs[1] = cx - half; ys[1] = cy + half;
+            xs[2] = cx + half; ys[2] = cy + half;
+            break;
+        case Dir::Down:
+            xs[0] = cx;        ys[0] = cy + half;
+            xs[1] = cx - half; ys[1] = cy - half;
+            xs[2] = cx + half; ys[2] = cy - half;
+            break;
+    }
+
+    renderer.fillPolygon(xs, ys, 3, true);
+}
+
 void SnakeActivity::drawFooterLabels() const {
-    static const char* labels[4] = {"Left", "Right", "Up", "Down"};
+    static const Dir dirs[4] = {Dir::Left, Dir::Right, Dir::Up, Dir::Down};
 
     int footerTop = screenH_ - FOOTER_H;
     renderer.drawLine(0, footerTop, screenW_, footerTop);
 
     int colW = screenW_ / 4;
-    int textH = renderer.getTextHeight(SMALL_FONT_ID);
-    int labelY = footerTop + (FOOTER_H - textH) / 2;
+    int cy = screenH_ - ARROW_BOTTOM_PAD - ARROW_SIZE / 2;
 
     for (int i = 0; i < 4; i++) {
-        int w = renderer.getTextWidth(SMALL_FONT_ID, labels[i]);
         int colCenterX = i * colW + colW / 2;
-        renderer.drawText(SMALL_FONT_ID, colCenterX - w / 2, labelY, labels[i], true);
+        drawArrow(dirs[i], colCenterX, cy, ARROW_SIZE);
 
         if (i > 0) {
             renderer.drawLine(i * colW, footerTop, i * colW, screenH_);
@@ -243,15 +281,11 @@ void SnakeActivity::render(RenderLock&&) {
     drawFooterLabels();
 
     if (gameOver_) {
-        char line2[24];
-        snprintf(line2, sizeof(line2), "Score: %d", score_);
-
-        int baseY = fieldTop_ + fieldH / 2 - 40;
+        int baseY = fieldTop_ + fieldH / 2 - 30;
         renderer.drawCenteredText(UI_12_FONT_ID, baseY, won_ ? "YOU WIN!" : "GAME OVER",
                                    true, EpdFontFamily::BOLD);
-        renderer.drawCenteredText(UI_10_FONT_ID, baseY + 30, line2);
-        renderer.drawCenteredText(UI_10_FONT_ID, baseY + 56, "Any button to Restart");
-        renderer.drawCenteredText(UI_10_FONT_ID, baseY + 78, "Power button to Exit");
+        renderer.drawCenteredText(UI_10_FONT_ID, baseY + 30, "Any button to Restart");
+        renderer.drawCenteredText(UI_10_FONT_ID, baseY + 52, "Power button to Exit");
     }
 
     renderer.displayBuffer();
