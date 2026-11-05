@@ -10,11 +10,19 @@
 
 A plugin system for customizing and extending https://github.com/crosspoint-reader/crosspoint-reader firmware on your xteink device. Plugins are applied as source-level patches before the firmware is compiled and flashed.
 
+## Compatibility
+
+The installer always builds against the latest crosspoint-reader. Plugins are opened from the Plugins row at the bottom of the main Settings screen.
+
+Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Dino Game and Snake Game.
+
+Skipped by the installer until they are ported: Dark Mode, Smaller Fonts, Bookerly Font and GitHub Sync. Dark Mode is not needed on the latest crosspoint-reader, which has a built-in Night Mode.
+
 ## Plugins
 
 ### Dark Mode
 
-Adds a Dark Mode option to the Plugins settings tab and the web interface Settings page. When enabled, the screen is inverted after each page render, producing white-on-black text across all reader formats (EPUB, TXT, and XTC).
+Adds a Dark Mode option to the Plugins screen and the web interface Settings page. When enabled, the screen is inverted after each page render, producing white-on-black text across all reader formats (EPUB, TXT, and XTC).
 
 State | Effect
 ------|--------
@@ -25,7 +33,7 @@ Enabled | Screen inverted — white text on black background
 
 ### Smaller Fonts
 
-Adds a Smaller Fonts option to the Plugins settings tab and the web interface Settings page. When enabled, your chosen reader font is transparently substituted with a smaller variant — no need to change your font preference.
+Adds a Smaller Fonts option to the Plugins screen and the web interface Settings page. When enabled, your chosen reader font is transparently substituted with a smaller variant — no need to change your font preference.
 
 Mode | Effect
 -----|--------
@@ -65,18 +73,18 @@ Adds the Bookerly font to your xteink device, available as a reader font option 
 
 Automatically syncs your reading progress between your xteink device and https://hardcover.app.
 
-- Extracts ISBN metadata from EPUB files to identify books
+- Extracts ISBN metadata from EPUB files to identify books, falling back to the Amazon ASIN when no ISBN is present
 - Tracks reading progress (page numbers) while you read
 - Automatically syncs progress for books with > 0% completion
 - Marks books as "Read" when you reach 100%+ completion
 - Requires a Hardcover API token configured in Settings
 
-Books without ISBN metadata or at 0% completion are skipped. 100%+ completed books are automatically moved to your "Read" shelf on Hardcover.
+Books with neither an ISBN nor an ASIN, or at 0% completion are skipped. 100%+ completed books are automatically moved to your "Read" shelf on Hardcover.
 
 Requirements:
 - Active internet connection via WiFi
 - Hardcover account and API token
-- Books with embedded ISBN metadata
+- Books with embedded ISBN or ASIN metadata
 
 ---
 
@@ -86,7 +94,7 @@ Syncs `.epub` files from a private GitHub repository to your device on boot.
 
 - Downloads new or updated books from your configured repo automatically on startup
 - Skips files already on the device that haven't changed
-- Configurable via Settings → Plugins → GitHub Sync (username, personal access token, repo, branch), after flashing
+- Configurable via Plugins → GitHub Sync (username, personal access token, repo, branch), after flashing
 
 Requirements:
 - Active internet connection via WiFi
@@ -97,7 +105,7 @@ Requirements:
 
 ### Pong Game
 
-Adds a classic Pong game against a CPU opponent, launched from the Plugins settings tab.
+Adds a classic Pong game against a CPU opponent, launched from the Plugins row in Settings.
 
 - Left/Right (or Up/Down, Back/Confirm) move your paddle in full paddle-width steps
 - CPU controls the top paddle and tracks the ball
@@ -108,7 +116,7 @@ Adds a classic Pong game against a CPU opponent, launched from the Plugins setti
 
 ### Dino Game
 
-Adds the classic offline dinosaur runner as a full-screen game, launched from the Plugins settings tab.
+Adds the classic offline dinosaur runner as a full-screen game, launched from the Plugins row in Settings.
 
 - Endless runner: jump the cacti as the game speeds up over time
 - Any button except Power jumps; Power exits the game
@@ -120,12 +128,32 @@ Adds the classic offline dinosaur runner as a full-screen game, launched from th
 
 ### Snake Game
 
-Adds a classic Snake game sized to your device's screen, launched from the Plugins settings tab.
+Adds a classic Snake game sized to your device's screen, launched from the Plugins row in Settings.
 
 - The 4 front buttons are fixed to Left / Right / Up / Down for this game, with on-screen labels above each button showing the mapping
 - Eat food to grow and score points; speed increases as your score climbs
 - Hitting a wall or yourself ends the game; any front button restarts and Power exits
 - Filling the entire board is a win
+
+---
+
+### Audiobookshelf
+
+Browse and download ebooks from your Audiobookshelf server, launched from the Plugins row in Settings.
+
+- Connects to WiFi first (connect from Settings if it cannot), then asks for Server, User Name and Password
+- Server, User Name and Password can also be filled in from the device web interface under Settings, Plugins, which is much faster than typing on the device
+- Optional "Save password to SD card (plain text)" checkbox; when unchecked only a login token is kept
+- Shows only your ebook library (named Books by default, change it with Audiobookshelf Library Name in the web interface)
+- Search, Continue Reading, Recently Added, Recent Series and Discover, with Logout at the bottom
+- Selecting a book downloads the epub to the SD card root and opens it
+- WiFi is disconnected when you leave the plugin or after 5 minutes without a button press
+- Servers hosted under a path such as /audiobookshelf are detected automatically
+
+Requirements:
+
+- Active internet connection via WiFi
+- Audiobookshelf account with permission to download
 
 ---
 
@@ -227,9 +255,14 @@ xteink-plugins/
     ├── dinogame/
     │   ├── plugin.py
     │   └── DinoActivity.h/.cpp
-    └── snakegame/
+    ├── snakegame/
+    │   ├── plugin.py
+    │   └── SnakeActivity.h/.cpp
+    └── audiobookshelf/
         ├── plugin.py
-        └── SnakeActivity.h/.cpp
+        ├── AudiobookshelfParse.h
+        ├── AudiobookshelfPlugin.h/.cpp
+        └── AudiobookshelfActivity.h/.cpp
 ```
 
 ## Troubleshooting

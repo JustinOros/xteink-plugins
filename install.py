@@ -296,8 +296,12 @@ def select_plugins(yes_all: bool = False):
         return []
 
     chosen = []
+    not_yet_compatible = {"bookerly", "darkmode", "githubsync", "smallerfonts"}
     for plugin_name in sorted(available):
         print(f"\n  Plugin: {plugin_name}")
+        if plugin_name in not_yet_compatible:
+            print(f"  Skipping {plugin_name} (not yet compatible with the latest CrossPoint).")
+            continue
         if yes_all:
             answer = "y"
             print(f"  Install '{plugin_name}'? [Y/n]: Y (--yes)")

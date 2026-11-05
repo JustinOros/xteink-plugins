@@ -35,6 +35,7 @@ std::string extractIsbnFromOpf(const uint8_t* data, size_t len) {
     const char* p   = reinterpret_cast<const char*>(data);
     const char* end = p + len;
     const char* pos = p;
+    std::string asin;
 
     while (pos < end) {
         const char* tagStart = static_cast<const char*>(
@@ -69,10 +70,18 @@ std::string extractIsbnFromOpf(const uint8_t* data, size_t len) {
                 digits += c;
         }
 
-        if (digits.size() == 13 || digits.size() == 10)
-            return digits;
+        if (digits.size() == 13) return digits;
+        if (digits.size() == 10) return "isbn10:" + digits;
+
+        if (asin.empty() && value.size() == 10 && value[0] == 'B') {
+            bool alnum = true;
+            for (char c : value) {
+                if (!isalnum(static_cast<unsigned char>(c))) { alnum = false; break; }
+            }
+            if (alnum) asin = "asin:" + value;
+        }
     }
-    return {};
+    return asin;
 }
 
 std::string getIsbnFromEpub(Epub& epub, const std::string& path) {
@@ -257,13 +266,22 @@ int getUserId(const std::string& token) {
 bool lookupIds(const std::string& isbn, const std::string& token,
                int& outBookId, int& outUserBookId, int& outEditionPages) {
     // Query 1: edition lookup for book_id and pages
-    char body[300];
+    const char* field = "isbn_13";
+    std::string value = isbn;
+    if (value.compare(0, 5, "asin:") == 0) {
+        field = "asin";
+        value = value.substr(5);
+    } else if (value.compare(0, 7, "isbn10:") == 0) {
+        field = "isbn_10";
+        value = value.substr(7);
+    }
+    char body[320];
     snprintf(body, sizeof(body),
         "{\"query\":\"{"
-        "editions(where:{isbn_13:{_eq:\\\"%s\\\"}},limit:1){"
+        "editions(where:{%s:{_eq:\\\"%s\\\"}},limit:1){"
         "book_id pages"
         "}}\"}",
-        isbn.c_str());
+        field, value.c_str());
 
     String resp = graphqlPost(body, token);
     if (resp.isEmpty()) return false;
