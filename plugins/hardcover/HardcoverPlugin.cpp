@@ -435,7 +435,34 @@ bool lookupByTitle(const std::string& title, const std::string& author, const st
             if (aEnd != std::string::npos) names = s.substr(aPos, aEnd - aPos);
         }
     }
-    if (authorKey.size() >= 3 && !names.empty()) {
+    auto squash = [](const std::string& in) {
+        std::string out;
+        for (char ch : in) {
+            if (isalnum(static_cast<unsigned char>(ch))) out += static_cast<char>(tolower(static_cast<unsigned char>(ch)));
+        }
+        return out;
+    };
+    std::string hitTitle;
+    {
+        size_t tPos = s.find("\"title\":\"", docPos);
+        if (tPos != std::string::npos) {
+            tPos += 9;
+            size_t tEnd = s.find('"', tPos);
+            if (tEnd != std::string::npos) hitTitle = s.substr(tPos, tEnd - tPos);
+        }
+    }
+    {
+        const std::string a = squash(title), b = squash(hitTitle);
+        if (a.empty() || b.empty() || (a.find(b) == std::string::npos && b.find(a) == std::string::npos)) {
+            LOG_INF("HCV", "Search result title mismatch: '%s' vs '%s'", title.c_str(), hitTitle.c_str());
+            return false;
+        }
+    }
+    if (authorKey.size() >= 3) {
+        if (names.empty()) {
+            LOG_INF("HCV", "Search result has no authors, skipping");
+            return false;
+        }
         std::string lowNames = names, lowKey = authorKey;
         for (auto& ch : lowNames) ch = tolower(static_cast<unsigned char>(ch));
         for (auto& ch : lowKey) ch = tolower(static_cast<unsigned char>(ch));
