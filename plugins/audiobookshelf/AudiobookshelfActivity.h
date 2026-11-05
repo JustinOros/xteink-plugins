@@ -34,9 +34,10 @@ class AudiobookshelfActivity final : public Activity {
   static constexpr int FORM_USER = 1;
   static constexpr int FORM_PASS = 2;
   static constexpr int FORM_SAVE = 3;
-  static constexpr int FORM_OK = 4;
-  static constexpr int FORM_CANCEL = 5;
-  static constexpr int FORM_COUNT = 6;
+  static constexpr int FORM_PC = 4;
+  static constexpr int FORM_OK = 5;
+  static constexpr int FORM_CANCEL = 6;
+  static constexpr int FORM_COUNT = 7;
 
   ButtonNavigator buttonNavigator;
   State state = State::CONNECTING;

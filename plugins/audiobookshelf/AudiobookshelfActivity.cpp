@@ -8,6 +8,7 @@
 #include "CrossPointState.h"
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
+#include "activities/network/CrossPointWebServerActivity.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "PluginListDraw.h"
@@ -284,6 +285,15 @@ void AudiobookshelfActivity::handleFormConfirm() {
       cfg.savePass = !cfg.savePass;
       requestUpdate();
       break;
+    case FORM_PC:
+      AudiobookshelfPlugin::saveConfig(cfg);
+      startActivityForResult(std::make_unique<CrossPointWebServerActivity>(renderer, mappedInput),
+                             [this](const ActivityResult&) {
+                               AudiobookshelfPlugin::loadConfig(cfg);
+                               lastInput = millis();
+                               requestUpdate();
+                             });
+      break;
     case FORM_OK:
       statusText.clear();
       setBusy("Signing in...");
@@ -450,6 +460,8 @@ void AudiobookshelfActivity::render(RenderLock&&) {
               return "Password";
             case FORM_SAVE:
               return std::string(cfg.savePass ? "[x]" : "[ ]") + " Save password to SD card (plain text)";
+            case FORM_PC:
+              return "Configure with PC";
             case FORM_OK:
               return "OK";
             default:
