@@ -142,7 +142,7 @@ Adds a classic Snake game sized to your device's screen, launched from the Plugi
 Browse and download ebooks from your Audiobookshelf server, launched from the Plugins row in Settings.
 
 - Connects to WiFi first (connect from Settings if it cannot), then asks for Server, User Name and Password
-- Choose "Configure with PC" on the login screen to show a QR code and address, then fill in Server, User Name and Password from a browser on your computer, which is much faster than typing on the device (useful for devices without a touch screen)
+- Choose "Configure from Phone or PC" on the login screen to show a QR code and address, then fill in Server, User Name and Password from a browser on your phone or computer, which is much faster than typing on the device (useful for devices without a touch screen)
 - Optional "Save password to SD card (plain text)" checkbox; when unchecked only a login token is kept
 - Shows only your ebook library (named Books by default, change it with Audiobookshelf Library Name in the web interface)
 - Search, Continue Reading, Recently Added, Recent Series and Discover, with Logout at the bottom

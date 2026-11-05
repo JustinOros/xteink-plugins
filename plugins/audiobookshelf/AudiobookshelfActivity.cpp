@@ -473,7 +473,7 @@ void AudiobookshelfActivity::render(RenderLock&&) {
             case FORM_SAVE:
               return std::string(cfg.savePass ? "[x]" : "[ ]") + " Save password to SD card (plain text)";
             case FORM_PC:
-              return "Configure with PC";
+              return "Configure from Phone or PC";
             case FORM_OK:
               return "OK";
             default:
