@@ -566,6 +566,13 @@ def patch_main_cpp(repo_dir, selected: List[SelectedPlugin]):
         block = "  setupDisplayAndFonts(resume != BootResume::Splash);\n\n" + \
                 "\n".join(display_hooks) + "\n\n  switch (resume) {"
         content = content.replace(anchor, block, 1)
+        if any("lockscreenUnlocked" in code for code in display_hooks):
+            boot_anchor = "    case BootResume::Splash:\n      activityManager.goToBoot();"
+            contains_once(content, boot_anchor, label)
+            content = content.replace(
+                boot_anchor,
+                "    case BootResume::Splash:\n      if (!lockscreenUnlocked) activityManager.goToBoot();",
+                1)
 
     post_hooks = [h.code for sp in selected for h in sp.manifest.main_hooks if h.point == "post_boot"]
     if post_hooks:

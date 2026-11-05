@@ -70,6 +70,7 @@ def get_manifest(ctx):
                 # unlocking underneath - i.e. an invisible, bypassable lock.
                 point="post_display_setup",
                 code=(
+                    "  bool lockscreenUnlocked = false;\n"
                     "  {\n"
                     "    const auto lsMode    = static_cast<LockscreenMode>(SETTINGS.lockscreenMode);\n"
                     "    const bool hasPinSet = SETTINGS.lockscreenPinHash[0] != '\\0';\n"
@@ -99,6 +100,7 @@ def get_manifest(ctx):
                     "        enterDeepSleep();\n"
                     "        return;\n"
                     "      }\n"
+                    "      lockscreenUnlocked = true;\n"
                     "    }\n"
                     "  }"
                 ),
