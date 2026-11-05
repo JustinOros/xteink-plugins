@@ -3,12 +3,12 @@
 #include <ArduinoJson.h>
 #include <Epub.h>
 #include <FsHelpers.h>
-#include <HTTPClient.h>
+#include <SecureHttpClient.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -211,33 +211,35 @@ void collectBooks(std::vector<InProgressBook>& inProgress, std::vector<InProgres
 // ---- HTTP helper -----------------------------------------------------------
 
 String graphqlPost(const char* body, const std::string& token) {
-    WiFiClientSecure client;
-    client.setInsecure();
-    client.setTimeout(15);
+    if (ESP.getFreeHeap() < 45000) {
+        LOG_ERR("HCV", "Not enough free heap for TLS: %u", static_cast<unsigned>(ESP.getFreeHeap()));
+        return "";
+    }
 
-    HTTPClient http;
-    http.begin(client, HARDCOVER_API);
-    http.setTimeout(15000);
+    freeink::SecureHttpClient http;
+    http.setInsecure();
+    http.setTimeout(20000);
+    http.setUserAgent("CrossPoint-X4");
+    if (!http.begin(HARDCOVER_API)) {
+        LOG_ERR("HCV", "Invalid API URL");
+        return "";
+    }
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("Authorization", "Bearer " + token);
 
-    char authHeader[648];
-    snprintf(authHeader, sizeof(authHeader), "Bearer %s", token.c_str());
-    http.addHeader("Authorization", authHeader);
-
-    int code = http.POST(body);
-    if (code <= 0) {
-        LOG_ERR("HCV", "HTTP error %d (connection failed — check WiFi/firewall)", code);
-        http.end();
-        return "";
-    }
+    std::string out;
+    const int code = http.sendRequest(
+        "POST", reinterpret_cast<const uint8_t*>(body), strlen(body),
+        [&out](const uint8_t* data, size_t len) {
+            if (out.size() + len > 32768) return false;
+            out.append(reinterpret_cast<const char*>(data), len);
+            return true;
+        });
     if (code != 200) {
-        LOG_ERR("HCV", "HTTP %d", code);
-        http.end();
+        LOG_ERR("HCV", "HTTP %d: %s", code, out.substr(0, 200).c_str());
         return "";
     }
-    String resp = http.getString();
-    http.end();
-    return resp;
+    return String(out.c_str());
 }
 
 // ---- Hardcover API ---------------------------------------------------------
