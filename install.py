@@ -386,6 +386,10 @@ def detect_serial_ports():
         if device not in port_map:
             port_map[device] = "Detected via glob pattern"
 
+    for device in list(port_map):
+        if device.startswith("/dev/tty.") and ("/dev/cu." + device[len("/dev/tty."):]) in port_map:
+            del port_map[device]
+
     return sorted(port_map.items())
 
 
