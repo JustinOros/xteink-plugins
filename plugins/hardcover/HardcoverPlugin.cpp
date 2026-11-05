@@ -417,7 +417,7 @@ int latestReadId(int userBookId, const std::string& token) {
     char body[300];
     snprintf(body, sizeof(body),
         "{\"query\":\"{"
-        "user_book_reads(where:{user_book_id:{_eq:%d}},order_by:{id:desc},limit:1){id}"
+        "user_book_reads(where:{user_book_id:{_eq:%d},finished_at:{_is_null:true}},order_by:{id:desc},limit:1){id progress_pages}"
         "}\"}",
         userBookId);
     String resp = graphqlPost(body, token);
@@ -429,7 +429,23 @@ int latestReadId(int userBookId, const std::string& token) {
     if (deserializeJson(doc, resp) != DeserializationError::Ok) return 0;
     JsonArray reads = doc["data"]["user_book_reads"].as<JsonArray>();
     if (reads.size() == 0) return 0;
+    LOG_INF("HCV", "Current read %d progress_pages=%d", reads[0]["id"] | 0, reads[0]["progress_pages"] | -1);
     return reads[0]["id"] | 0;
+}
+
+int readProgressPages(int userBookId, const std::string& token) {
+    char body[300];
+    snprintf(body, sizeof(body),
+        "{\"query\":\"{"
+        "user_book_reads(where:{user_book_id:{_eq:%d},finished_at:{_is_null:true}},order_by:{id:desc},limit:1){progress_pages}"
+        "}\"}",
+        userBookId);
+    String resp = graphqlPost(body, token);
+    JsonDocument doc;
+    if (resp.isEmpty() || deserializeJson(doc, resp) != DeserializationError::Ok) return -1;
+    JsonArray reads = doc["data"]["user_book_reads"].as<JsonArray>();
+    if (reads.size() == 0) return -1;
+    return reads[0]["progress_pages"] | -1;
 }
 
 bool updateProgress(int userBookId, int page, int editionId, const std::string& token) {
@@ -450,8 +466,12 @@ bool updateProgress(int userBookId, int page, int editionId, const std::string& 
         LOG_INF("HCV", "update_user_book_read(%d): %s", readId, resp.c_str());
         int id = 0;
         if (mutationOk(resp, "update_user_book_read", id)) {
-            saveCachedReadId(userBookId, readId);
-            return true;
+            int stored = readProgressPages(userBookId, token);
+            LOG_INF("HCV", "Readback progress_pages=%d expected=%d", stored, page);
+            if (stored == page) {
+                saveCachedReadId(userBookId, readId);
+                return true;
+            }
         }
         LOG_ERR("HCV", "Update failed, inserting new read session");
     }
