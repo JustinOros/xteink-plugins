@@ -483,6 +483,25 @@ bool lookupByTitle(const std::string& title, const std::string& author, const st
         JsonArray books = doc2["data"]["books"].as<JsonArray>();
         if (books.size() > 0) outEditionPages = books[0]["pages"] | 0;
     }
+    if (outEditionPages <= 0) {
+        size_t pPos = s.find("\"pages\":", docPos);
+        if (pPos != std::string::npos) outEditionPages = atoi(s.c_str() + pPos + 8);
+    }
+    if (outEditionPages <= 0) {
+        char body3[240];
+        snprintf(body3, sizeof(body3),
+            "{\"query\":\"{editions(where:{book_id:{_eq:%d},pages:{_gt:0}},limit:1){id pages}}\"}", bookId);
+        String resp3 = graphqlPost(body3, token);
+        JsonDocument doc3;
+        if (!resp3.isEmpty() && resp3.indexOf("\"errors\"") == -1 &&
+            deserializeJson(doc3, resp3) == DeserializationError::Ok) {
+            JsonArray eds = doc3["data"]["editions"].as<JsonArray>();
+            if (eds.size() > 0) {
+                outEditionPages = eds[0]["pages"] | 0;
+                outEditionId = eds[0]["id"] | 0;
+            }
+        }
+    }
     outBookId = bookId;
     if (!findUserBook(bookId, token, outUserBookId)) return false;
     LOG_INF("HCV", "Search match '%s' -> book_id=%d pages=%d user_book_id=%d",
@@ -675,6 +694,10 @@ bool syncBook(const InProgressBook& book, int userId, const std::string& token) 
     if (editionPages > 0)
         absolutePage = static_cast<int>(book.pct / 100.0f * editionPages + 0.5f);
     LOG_DBG("HCV", "Progress: %d%% -> page %d/%d", book.pct, absolutePage, editionPages);
+    if (editionPages <= 0 || absolutePage <= 0) {
+        LOG_ERR("HCV", "No page count known for '%s', cannot convert %d%% to a page", book.title.c_str(), book.pct);
+        return false;
+    }
 
     return updateProgress(resolvedUserBookId, absolutePage, editionId, token);
 }
