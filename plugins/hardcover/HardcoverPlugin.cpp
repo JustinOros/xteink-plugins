@@ -415,12 +415,8 @@ bool lookupByTitle(const std::string& title, const std::string& author, const st
     }
     int bookId = 0;
     {
-        size_t idPos = s.find("\"id\":", docPos);
-        if (idPos != std::string::npos) {
-            idPos += 5;
-            while (idPos < s.size() && (s[idPos] == ' ' || s[idPos] == '"')) idPos++;
-            bookId = atoi(s.c_str() + idPos);
-        }
+        size_t idPos = s.find("\"id\":\"", docPos);
+        if (idPos != std::string::npos) bookId = atoi(s.c_str() + idPos + 6);
     }
     if (bookId == 0) {
         LOG_ERR("HCV", "Search result had no id");
@@ -442,22 +438,6 @@ bool lookupByTitle(const std::string& title, const std::string& author, const st
         }
         return out;
     };
-    std::string hitTitle;
-    {
-        size_t tPos = s.find("\"title\":\"", docPos);
-        if (tPos != std::string::npos) {
-            tPos += 9;
-            size_t tEnd = s.find('"', tPos);
-            if (tEnd != std::string::npos) hitTitle = s.substr(tPos, tEnd - tPos);
-        }
-    }
-    {
-        const std::string a = squash(title), b = squash(hitTitle);
-        if (a.empty() || b.empty() || (a.find(b) == std::string::npos && b.find(a) == std::string::npos)) {
-            LOG_INF("HCV", "Search result title mismatch: '%s' vs '%s'", title.c_str(), hitTitle.c_str());
-            return false;
-        }
-    }
     if (authorKey.size() >= 3) {
         if (names.empty()) {
             LOG_INF("HCV", "Search result has no authors, skipping");
@@ -473,15 +453,26 @@ bool lookupByTitle(const std::string& title, const std::string& author, const st
     }
 
     char body2[200];
-    snprintf(body2, sizeof(body2), "{\"query\":\"{books(where:{id:{_eq:%d}}){id pages}}\"}", bookId);
+    snprintf(body2, sizeof(body2), "{\"query\":\"{books(where:{id:{_eq:%d}}){id title pages}}\"}", bookId);
     String resp2 = graphqlPost(body2, token);
     outEditionPages = 0;
     outEditionId = 0;
+    std::string hitTitle;
     JsonDocument doc2;
     if (!resp2.isEmpty() && resp2.indexOf("\"errors\"") == -1 &&
         deserializeJson(doc2, resp2) == DeserializationError::Ok) {
         JsonArray books = doc2["data"]["books"].as<JsonArray>();
-        if (books.size() > 0) outEditionPages = books[0]["pages"] | 0;
+        if (books.size() > 0) {
+            outEditionPages = books[0]["pages"] | 0;
+            hitTitle = books[0]["title"] | "";
+        }
+    }
+    {
+        const std::string ta = squash(title), tb = squash(hitTitle);
+        if (ta.empty() || tb.empty() || (ta.find(tb) == std::string::npos && tb.find(ta) == std::string::npos)) {
+            LOG_INF("HCV", "Search result title mismatch: '%s' vs '%s' (book_id=%d)", title.c_str(), hitTitle.c_str(), bookId);
+            return false;
+        }
     }
     if (outEditionPages <= 0) {
         size_t pPos = s.find("\"pages\":", docPos);
@@ -490,7 +481,7 @@ bool lookupByTitle(const std::string& title, const std::string& author, const st
     if (outEditionPages <= 0) {
         char body3[240];
         snprintf(body3, sizeof(body3),
-            "{\"query\":\"{editions(where:{book_id:{_eq:%d},pages:{_gt:0}},limit:1){id pages}}\"}", bookId);
+            "{\"query\":\"{editions(where:{book_id:{_eq:%d},pages:{_gt:0}},order_by:{users_count:desc},limit:1){id pages}}\"}", bookId);
         String resp3 = graphqlPost(body3, token);
         JsonDocument doc3;
         if (!resp3.isEmpty() && resp3.indexOf("\"errors\"") == -1 &&
