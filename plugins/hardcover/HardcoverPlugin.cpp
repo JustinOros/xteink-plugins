@@ -510,15 +510,17 @@ bool lookupBook(const InProgressBook& book, const std::string& token,
 
 // Step 2: Upsert user_book status to Currently Reading (status_id=2).
 // Returns the user_book id (new or existing).
-int upsertUserBook(int bookId, int userBookId, const std::string& token) {
+int upsertUserBook(int bookId, int userBookId, int editionId, const std::string& token) {
     char body[300];
+    char editionField[40] = "";
+    if (editionId != 0 && userBookId == 0) snprintf(editionField, sizeof(editionField), ",edition_id:%d", editionId);
     // insert_user_book acts as upsert via its error field
     snprintf(body, sizeof(body),
         "{\"query\":\"mutation{"
-        "insert_user_book(object:{book_id:%d,status_id:2}){"
+        "insert_user_book(object:{book_id:%d,status_id:2%s}){"
         "user_book{id} error"
         "}}\"}",
-        bookId);
+        bookId, editionField);
 
     String resp = graphqlPost(body, token);
     if (resp.isEmpty()) return 0;
@@ -677,7 +679,7 @@ bool syncBook(const InProgressBook& book, int userId, const std::string& token) 
     if (!lookupBook(book, token, bookId, userBookId, editionPages, editionId)) return false;
 
     // Ensure book is in library as Currently Reading
-    int resolvedUserBookId = upsertUserBook(bookId, userBookId, token);
+    int resolvedUserBookId = upsertUserBook(bookId, userBookId, editionId, token);
     if (resolvedUserBookId == 0) return false;
 
     userBookEdition(resolvedUserBookId, token, editionId, editionPages);
