@@ -39,6 +39,36 @@ void LockscreenActivity::goToSleep() {
     success_ = false;
 }
 
+void LockscreenActivity::submitPin() {
+    if (pinLen_ < PIN_LEN) return;
+
+    if (purpose_ == Purpose::CREATE) {
+        LockscreenPlugin::hashPin(pin_, SETTINGS.lockscreenPinHash);
+        SETTINGS.saveToFile();
+        success_ = true;
+        done_    = true;
+        finish();
+    } else {
+        if (LockscreenPlugin::checkPin(pin_, SETTINGS.lockscreenPinHash)) {
+            while (mappedInput.isPressed(MappedInputManager::Button::Confirm)) {
+                mappedInput.update();
+                delay(10);
+            }
+            success_ = true;
+            done_    = true;
+        } else {
+            attempts_++;
+            pinLen_ = 0;
+            memset(pin_, 0, sizeof(pin_));
+            renderPending_ = true;
+            requestUpdate();
+            if (attempts_ >= MAX_ATTEMPTS) {
+                goToSleep();
+            }
+        }
+    }
+}
+
 void LockscreenActivity::pressCurrentKey() {
     const char* key = KEYS[cursorRow_][cursorCol_];
 
@@ -53,45 +83,18 @@ void LockscreenActivity::pressCurrentKey() {
     }
 
     if (strcmp(key, "OK") == 0) {
-        if (pinLen_ < PIN_LEN) return;
-
-        if (purpose_ == Purpose::CREATE) {
-            LockscreenPlugin::hashPin(pin_, SETTINGS.lockscreenPinHash);
-            SETTINGS.saveToFile();
-            success_ = true;
-            done_    = true;
-            finish();
-        } else {
-            if (LockscreenPlugin::checkPin(pin_, SETTINGS.lockscreenPinHash)) {
-                while (mappedInput.isPressed(MappedInputManager::Button::Confirm)) {
-                    mappedInput.update();
-                    delay(10);
-                }
-                success_ = true;
-                done_    = true;
-            } else {
-                attempts_++;
-                pinLen_ = 0;
-                memset(pin_, 0, sizeof(pin_));
-                renderPending_ = true;
-                requestUpdate();
-                if (attempts_ >= MAX_ATTEMPTS) {
-                    goToSleep();
-                }
-            }
-        }
+        submitPin();
         return;
     }
 
     if (pinLen_ < PIN_LEN) {
         pin_[pinLen_++] = key[0];
         pin_[pinLen_]   = '\0';
-        if (pinLen_ == PIN_LEN) {
-            cursorRow_ = 3;
-            cursorCol_ = 2;
-        }
         renderPending_ = true;
         requestUpdate();
+        if (pinLen_ == PIN_LEN) {
+            submitPin();
+        }
     }
 }
 
