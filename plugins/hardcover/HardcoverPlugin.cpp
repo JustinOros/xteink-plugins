@@ -509,6 +509,28 @@ bool markAsRead(const std::string& isbn, const std::string& token) {
     return (!resp.isEmpty() && resp.indexOf("\"errors\"") == -1);
 }
 
+bool userBookEdition(int userBookId, const std::string& token, int& editionId, int& pages) {
+    char body[300];
+    snprintf(body, sizeof(body),
+        "{\"query\":\"{"
+        "user_books(where:{id:{_eq:%d}}){edition{id pages}}"
+        "}\"}",
+        userBookId);
+    String resp = graphqlPost(body, token);
+    JsonDocument doc;
+    if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) return false;
+    if (deserializeJson(doc, resp) != DeserializationError::Ok) return false;
+    JsonArray rows = doc["data"]["user_books"].as<JsonArray>();
+    if (rows.size() == 0) return false;
+    JsonVariant ed = rows[0]["edition"];
+    const int id = ed["id"] | 0;
+    const int pg = ed["pages"] | 0;
+    if (id == 0 || pg <= 0) return false;
+    editionId = id;
+    pages = pg;
+    return true;
+}
+
 bool syncBook(const InProgressBook& book, int userId, const std::string& token) {
     int bookId = 0, userBookId = 0, editionPages = 0, editionId = 0;
     if (!lookupIds(book.isbn, token, bookId, userBookId, editionPages, editionId)) return false;
@@ -517,7 +539,7 @@ bool syncBook(const InProgressBook& book, int userId, const std::string& token) 
     int resolvedUserBookId = upsertUserBook(bookId, userBookId, token);
     if (resolvedUserBookId == 0) return false;
 
-    // Compute absolute page from percentage and edition page count
+    userBookEdition(resolvedUserBookId, token, editionId, editionPages);
     int absolutePage = 0;
     if (editionPages > 0)
         absolutePage = static_cast<int>(book.pct / 100.0f * editionPages + 0.5f);
