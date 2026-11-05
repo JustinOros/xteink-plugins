@@ -266,7 +266,7 @@ int getUserId(const std::string& token) {
 
 // Step 1: Look up book_id, page count, and user's user_book_id from ISBN-13.
 bool lookupIds(const std::string& isbn, const std::string& token,
-               int& outBookId, int& outUserBookId, int& outEditionPages) {
+               int& outBookId, int& outUserBookId, int& outEditionPages, int& outEditionId) {
     // Query 1: edition lookup for book_id and pages
     const char* field = "isbn_13";
     std::string value = isbn;
@@ -281,7 +281,7 @@ bool lookupIds(const std::string& isbn, const std::string& token,
     snprintf(body, sizeof(body),
         "{\"query\":\"{"
         "editions(where:{%s:{_eq:\\\"%s\\\"}},limit:1){"
-        "book_id pages"
+        "id book_id pages"
         "}}\"}",
         field, value.c_str());
 
@@ -304,6 +304,7 @@ bool lookupIds(const std::string& isbn, const std::string& token,
     outBookId = editions[0]["book_id"] | 0;
     if (outBookId == 0) return false;
     outEditionPages = editions[0]["pages"] | 0;
+    outEditionId = editions[0]["id"] | 0;
 
     // Query 2: fetch current user's user_book_id for this book
     char body2[200];
@@ -397,49 +398,84 @@ void saveCachedReadId(int userBookId, int readId) {
     f.close();
 }
 
-bool updateProgress(int userBookId, int page, const std::string& token) {
-    int cachedReadId = loadCachedReadId(userBookId);
+bool mutationOk(const String& resp, const char* field, int& outId) {
+    outId = 0;
+    if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) return false;
+    JsonDocument doc;
+    if (deserializeJson(doc, resp) != DeserializationError::Ok) return false;
+    JsonVariant node = doc["data"][field];
+    const char* err = node["error"] | "";
+    if (err[0] != '\0') {
+        LOG_ERR("HCV", "%s error: %s", field, err);
+        return false;
+    }
+    outId = node["id"] | 0;
+    return outId != 0;
+}
 
+int latestReadId(int userBookId, const std::string& token) {
+    char body[300];
+    snprintf(body, sizeof(body),
+        "{\"query\":\"{"
+        "user_book_reads(where:{user_book_id:{_eq:%d}},order_by:{id:desc},limit:1){id}"
+        "}\"}",
+        userBookId);
+    String resp = graphqlPost(body, token);
+    if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) {
+        LOG_ERR("HCV", "latestReadId failed: %s", resp.c_str());
+        return 0;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, resp) != DeserializationError::Ok) return 0;
+    JsonArray reads = doc["data"]["user_book_reads"].as<JsonArray>();
+    if (reads.size() == 0) return 0;
+    return reads[0]["id"] | 0;
+}
+
+bool updateProgress(int userBookId, int page, int editionId, const std::string& token) {
     char body[512];
-    if (cachedReadId != 0) {
-        // Update existing cached session
+    char editionField[40] = "";
+    if (editionId != 0) snprintf(editionField, sizeof(editionField), ",edition_id:%d", editionId);
+
+    int readId = latestReadId(userBookId, token);
+    if (readId == 0) readId = loadCachedReadId(userBookId);
+
+    if (readId != 0) {
         snprintf(body, sizeof(body),
             "{\"query\":\"mutation{"
-            "update_user_book_read(id:%d,object:{progress_pages:%d}){"
-            "id}}\"}",
-            cachedReadId, page);
+            "update_user_book_read(id:%d,object:{progress_pages:%d%s}){"
+            "id error}}\"}",
+            readId, page, editionField);
         String resp = graphqlPost(body, token);
-        LOG_DBG("HCV", "updateProgress (cached read_id=%d): %s", cachedReadId, resp.c_str());
-        if (!resp.isEmpty() && resp.indexOf("\"errors\"") == -1) return true;
-        // Cache miss or stale — fall through to insert
-        LOG_DBG("HCV", "Cached read_id stale, inserting new session");
+        LOG_INF("HCV", "update_user_book_read(%d): %s", readId, resp.c_str());
+        int id = 0;
+        if (mutationOk(resp, "update_user_book_read", id)) {
+            saveCachedReadId(userBookId, readId);
+            return true;
+        }
+        LOG_ERR("HCV", "Update failed, inserting new read session");
     }
 
-    // Insert a new read session and cache the ID
     snprintf(body, sizeof(body),
         "{\"query\":\"mutation{"
-        "insert_user_book_read(user_book_id:%d,user_book_read:{progress_pages:%d}){"
-        "id}}\"}",
-        userBookId, page);
+        "insert_user_book_read(user_book_id:%d,user_book_read:{progress_pages:%d%s}){"
+        "id error}}\"}",
+        userBookId, page, editionField);
     String resp = graphqlPost(body, token);
-    LOG_DBG("HCV", "insert_user_book_read: %s", resp.c_str());
-    if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) {
+    LOG_INF("HCV", "insert_user_book_read: %s", resp.c_str());
+    int newReadId = 0;
+    if (!mutationOk(resp, "insert_user_book_read", newReadId)) {
         LOG_ERR("HCV", "updateProgress insert failed: %s", resp.c_str());
         return false;
     }
-
-    JsonDocument doc;
-    if (deserializeJson(doc, resp) != DeserializationError::Ok) return false;
-    int newReadId = doc["data"]["insert_user_book_read"]["id"] | 0;
-    if (newReadId != 0) saveCachedReadId(userBookId, newReadId);
-
+    saveCachedReadId(userBookId, newReadId);
     return true;
 }
 
 // New function to mark books as Read (status_id=3)
 bool markAsRead(const std::string& isbn, const std::string& token) {
-    int bookId = 0, userBookId = 0, editionPages = 0;
-    if (!lookupIds(isbn, token, bookId, userBookId, editionPages)) return false;
+    int bookId = 0, userBookId = 0, editionPages = 0, editionId = 0;
+    if (!lookupIds(isbn, token, bookId, userBookId, editionPages, editionId)) return false;
     if (userBookId == 0) return false;
 
     char body[300];
@@ -454,8 +490,8 @@ bool markAsRead(const std::string& isbn, const std::string& token) {
 }
 
 bool syncBook(const InProgressBook& book, int userId, const std::string& token) {
-    int bookId = 0, userBookId = 0, editionPages = 0;
-    if (!lookupIds(book.isbn, token, bookId, userBookId, editionPages)) return false;
+    int bookId = 0, userBookId = 0, editionPages = 0, editionId = 0;
+    if (!lookupIds(book.isbn, token, bookId, userBookId, editionPages, editionId)) return false;
 
     // Ensure book is in library as Currently Reading
     int resolvedUserBookId = upsertUserBook(bookId, userBookId, token);
@@ -467,7 +503,7 @@ bool syncBook(const InProgressBook& book, int userId, const std::string& token) 
         absolutePage = static_cast<int>(book.pct / 100.0f * editionPages + 0.5f);
     LOG_DBG("HCV", "Progress: %d%% -> page %d/%d", book.pct, absolutePage, editionPages);
 
-    return updateProgress(resolvedUserBookId, absolutePage, token);
+    return updateProgress(resolvedUserBookId, absolutePage, editionId, token);
 }
 
 }  // anonymous namespace
