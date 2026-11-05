@@ -468,7 +468,7 @@ bool updateProgress(int userBookId, int page, int editionId, const std::string& 
         if (mutationOk(resp, "update_user_book_read", id)) {
             int stored = readProgressPages(userBookId, token);
             LOG_INF("HCV", "Readback progress_pages=%d expected=%d", stored, page);
-            if (stored == page) {
+            if (stored == page || stored < 0) {
                 saveCachedReadId(userBookId, readId);
                 return true;
             }
