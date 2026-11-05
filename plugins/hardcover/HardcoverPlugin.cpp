@@ -196,10 +196,16 @@ void collectBooks(std::vector<InProgressBook>& inProgress, std::vector<InProgres
         if (!epub.load(false, true) && !epub.load(true, true)) continue;
 
         int pct = epubProgressPercent(cachePath, page, epub);
-        if (pct < 1) continue;
+        if (pct < 1) {
+            LOG_INF("HCV", "Skip %s: progress under 1%%", path.c_str());
+            continue;
+        }
 
         std::string isbn = getIsbnFromEpub(epub, path);
-        if (isbn.empty()) continue;
+        if (isbn.empty()) {
+            LOG_INF("HCV", "Skip %s: no ISBN or ASIN in book", path.c_str());
+            continue;
+        }
 
         if (pct >= 100)
             completed.push_back({isbn, page, pct});
@@ -371,17 +377,6 @@ std::string readSessionCachePath(int userBookId) {
     return std::string(path);
 }
 
-int loadCachedReadId(int userBookId) {
-    HalFile f;
-    std::string path = readSessionCachePath(userBookId);
-    if (!Storage.openFileForRead("HCV", path.c_str(), f)) return 0;
-    uint8_t data[4] = {};
-    bool ok = (f.read(data, 4) == 4);
-    f.close();
-    if (!ok) return 0;
-    return data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
-}
-
 void saveCachedReadId(int userBookId, int readId) {
     HalFile f;
     std::string path = readSessionCachePath(userBookId);
@@ -413,39 +408,25 @@ bool mutationOk(const String& resp, const char* field, int& outId) {
     return outId != 0;
 }
 
-int latestReadId(int userBookId, const std::string& token) {
+int unfinishedReadIds(int userBookId, const std::string& token, int* ids, int maxIds) {
     char body[300];
     snprintf(body, sizeof(body),
         "{\"query\":\"{"
-        "user_book_reads(where:{user_book_id:{_eq:%d},finished_at:{_is_null:true}},order_by:{id:desc},limit:1){id progress_pages}"
+        "user_book_reads(where:{user_book_id:{_eq:%d},finished_at:{_is_null:true}},order_by:{id:desc},limit:%d){id progress_pages}"
         "}\"}",
-        userBookId);
+        userBookId, maxIds);
     String resp = graphqlPost(body, token);
-    if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) {
-        LOG_ERR("HCV", "latestReadId failed: %s", resp.c_str());
-        return 0;
-    }
     JsonDocument doc;
+    if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) return 0;
     if (deserializeJson(doc, resp) != DeserializationError::Ok) return 0;
     JsonArray reads = doc["data"]["user_book_reads"].as<JsonArray>();
-    if (reads.size() == 0) return 0;
-    LOG_INF("HCV", "Current read %d progress_pages=%d", reads[0]["id"] | 0, reads[0]["progress_pages"] | -1);
-    return reads[0]["id"] | 0;
-}
-
-int readProgressPages(int userBookId, const std::string& token) {
-    char body[300];
-    snprintf(body, sizeof(body),
-        "{\"query\":\"{"
-        "user_book_reads(where:{user_book_id:{_eq:%d},finished_at:{_is_null:true}},order_by:{id:desc},limit:1){progress_pages}"
-        "}\"}",
-        userBookId);
-    String resp = graphqlPost(body, token);
-    JsonDocument doc;
-    if (resp.isEmpty() || deserializeJson(doc, resp) != DeserializationError::Ok) return -1;
-    JsonArray reads = doc["data"]["user_book_reads"].as<JsonArray>();
-    if (reads.size() == 0) return -1;
-    return reads[0]["progress_pages"] | -1;
+    int n = 0;
+    for (JsonObject r : reads) {
+        if (n >= maxIds) break;
+        ids[n++] = r["id"] | 0;
+        LOG_INF("HCV", "Open read %d progress_pages=%d", r["id"] | 0, r["progress_pages"] | -1);
+    }
+    return n;
 }
 
 bool updateProgress(int userBookId, int page, int editionId, const std::string& token) {
@@ -453,28 +434,21 @@ bool updateProgress(int userBookId, int page, int editionId, const std::string& 
     char editionField[40] = "";
     if (editionId != 0) snprintf(editionField, sizeof(editionField), ",edition_id:%d", editionId);
 
-    int readId = latestReadId(userBookId, token);
-    if (readId == 0) readId = loadCachedReadId(userBookId);
-
-    if (readId != 0) {
+    int ids[8] = {};
+    const int count = unfinishedReadIds(userBookId, token, ids, 8);
+    int okCount = 0;
+    for (int i = 0; i < count; i++) {
         snprintf(body, sizeof(body),
             "{\"query\":\"mutation{"
             "update_user_book_read(id:%d,object:{progress_pages:%d%s}){"
             "id error}}\"}",
-            readId, page, editionField);
+            ids[i], page, editionField);
         String resp = graphqlPost(body, token);
-        LOG_INF("HCV", "update_user_book_read(%d): %s", readId, resp.c_str());
+        LOG_INF("HCV", "update_user_book_read(%d): %s", ids[i], resp.c_str());
         int id = 0;
-        if (mutationOk(resp, "update_user_book_read", id)) {
-            int stored = readProgressPages(userBookId, token);
-            LOG_INF("HCV", "Readback progress_pages=%d expected=%d", stored, page);
-            if (stored == page || stored < 0) {
-                saveCachedReadId(userBookId, readId);
-                return true;
-            }
-        }
-        LOG_ERR("HCV", "Update failed, inserting new read session");
+        if (mutationOk(resp, "update_user_book_read", id)) okCount++;
     }
+    if (okCount > 0) return true;
 
     snprintf(body, sizeof(body),
         "{\"query\":\"mutation{"
