@@ -168,6 +168,14 @@ Install Python dependencies with:
 
 pip3 install -r requirements.txt
 
+## Windows quick install
+
+Download `install.ps1`, right-click it and choose "Run with PowerShell". If Windows blocks it, open PowerShell and run:
+
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+
+The script installs Git, Python and PlatformIO if they are missing, downloads the plugins, then runs the installer.
+
 ## Usage
 
 From the root of this repository, run:
