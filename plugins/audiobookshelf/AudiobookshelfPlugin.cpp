@@ -1,6 +1,7 @@
 #include "AudiobookshelfPlugin.h"
 
 #include <Arduino.h>
+#include <FsHelpers.h>
 #include <ArduinoJson.h>
 #include <HalStorage.h>
 #include <Logging.h>
@@ -265,6 +266,57 @@ AbsResult search(const AbsConfig& cfg, const std::string& query, std::vector<Abs
 AbsResult downloadBook(const AbsConfig& cfg, const std::string& itemId, const std::string& destPath,
                        const AbsProgress& progress) {
   return httpToFile(apiUrl(cfg, "/api/items/" + itemId + "/ebook"), cfg.token, destPath, true, progress);
+}
+
+namespace {
+constexpr int SCAN_MAX_DEPTH = 6;
+constexpr int SCAN_MAX_ENTRIES = 6000;
+
+bool scanForBook(const std::string& dirPath, const AbsItem& item, int depth, int& budget, std::string& found) {
+  auto dir = Storage.open(dirPath.c_str());
+  if (!dir || !dir.isDirectory()) {
+    if (dir) dir.close();
+    return false;
+  }
+  dir.rewindDirectory();
+  char name[500];
+  for (auto entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
+    if (--budget <= 0) {
+      entry.close();
+      break;
+    }
+    entry.getName(name, sizeof(name));
+    const std::string_view sv{name};
+    if (sv.empty() || sv[0] == '.') {
+      entry.close();
+      continue;
+    }
+    std::string full = dirPath;
+    if (full.back() != '/') full += '/';
+    full += name;
+    const bool isDir = entry.isDirectory();
+    entry.close();
+    if (isDir) {
+      if (depth < SCAN_MAX_DEPTH && scanForBook(full, item, depth + 1, budget, found)) {
+        dir.close();
+        return true;
+      }
+    } else if (FsHelpers::hasEpubExtension(sv) && AbsParse::matchesExisting(full, item.title, item.author)) {
+      found = full;
+      dir.close();
+      return true;
+    }
+  }
+  dir.close();
+  return false;
+}
+}  // namespace
+
+std::string findExistingBook(const AbsItem& item) {
+  std::string found;
+  int budget = SCAN_MAX_ENTRIES;
+  scanForBook("/", item, 0, budget, found);
+  return found;
 }
 
 std::string bookPath(const AbsItem& item) { return "/" + AbsParse::sanitizeFilename(item.title, item.author, item.id); }

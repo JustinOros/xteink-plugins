@@ -212,4 +212,55 @@ inline std::string sanitizeFilename(const std::string& title, const std::string&
   return out + ".epub";
 }
 
+inline std::string normalizeKey(const std::string& in) {
+  std::string out;
+  for (unsigned char c : in) {
+    if (c >= 0x80) {
+      out += static_cast<char>(c);
+    } else if (isalnum(c)) {
+      out += static_cast<char>(tolower(c));
+    }
+  }
+  return out;
+}
+
+inline bool matchesExisting(const std::string& path, const std::string& title, const std::string& author) {
+  const std::string pathKey = normalizeKey(path);
+  const std::string titleKey = normalizeKey(title);
+  if (titleKey.empty()) return false;
+  const size_t slash = path.find_last_of('/');
+  std::string stem = slash == std::string::npos ? path : path.substr(slash + 1);
+  const size_t dot = stem.find_last_of('.');
+  if (dot != std::string::npos) stem.resize(dot);
+  const std::string stemKey = normalizeKey(stem);
+
+  std::vector<std::string> authorKeys;
+  std::string word;
+  for (size_t i = 0; i <= author.size(); ++i) {
+    const char c = i < author.size() ? author[i] : ' ';
+    if (c == ' ' || c == ',' || c == '.') {
+      const std::string key = normalizeKey(word);
+      if (key.size() >= 3) authorKeys.push_back(key);
+      word.clear();
+    } else {
+      word += c;
+    }
+  }
+
+  bool authorOk = author.empty();
+  for (const auto& key : authorKeys) {
+    if (pathKey.find(key) != std::string::npos) authorOk = true;
+  }
+  if (!authorOk) return false;
+
+  if (titleKey.size() >= 6) return pathKey.find(titleKey) != std::string::npos;
+  if (stemKey == titleKey) return true;
+  if (stemKey.compare(0, titleKey.size(), titleKey) != 0) return false;
+  const std::string rest = stemKey.substr(titleKey.size());
+  for (const auto& key : authorKeys) {
+    if (rest.find(key) != std::string::npos) return true;
+  }
+  return false;
+}
+
 }

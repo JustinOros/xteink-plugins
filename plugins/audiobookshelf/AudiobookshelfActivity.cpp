@@ -177,7 +177,13 @@ void AudiobookshelfActivity::runSearch() {
 }
 
 void AudiobookshelfActivity::runDownload() {
-  const std::string path = AudiobookshelfPlugin::bookPath(downloadItem);
+  std::string path = AudiobookshelfPlugin::bookPath(downloadItem);
+  if (!Storage.exists(path.c_str())) {
+    busyText = "Checking library...";
+    requestUpdateAndWait();
+    const std::string existing = AudiobookshelfPlugin::findExistingBook(downloadItem);
+    if (!existing.empty()) path = existing;
+  }
   if (!Storage.exists(path.c_str())) {
     int lastStep = -1;
     const AbsResult r = AudiobookshelfPlugin::downloadBook(

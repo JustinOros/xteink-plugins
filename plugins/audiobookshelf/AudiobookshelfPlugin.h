@@ -45,6 +45,7 @@ AbsResult downloadBook(const AbsConfig& cfg, const std::string& itemId, const st
                        const AbsProgress& progress);
 
 std::string bookPath(const AbsItem& item);
+std::string findExistingBook(const AbsItem& item);
 const char* message(AbsResult r);
 
 }
