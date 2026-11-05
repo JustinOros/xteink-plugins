@@ -404,30 +404,35 @@ bool lookupByTitle(const std::string& title, const std::string& author, const st
         LOG_ERR("HCV", "Search error: %s", resp.c_str());
         return false;
     }
-    JsonDocument filter;
-    filter["data"]["search"]["results"]["hits"][0]["document"]["id"] = true;
-    filter["data"]["search"]["results"]["hits"][0]["document"]["title"] = true;
-    filter["data"]["search"]["results"]["hits"][0]["document"]["author_names"] = true;
-    JsonDocument doc;
-    if (deserializeJson(doc, resp, DeserializationOption::Filter(filter)) != DeserializationError::Ok) {
-        LOG_ERR("HCV", "Search parse failed");
-        return false;
-    }
-    JsonVariant hit = doc["data"]["search"]["results"]["hits"][0]["document"];
-    if (hit.isNull()) {
+    std::string s(resp.c_str());
+    LOG_INF("HCV", "Search response %u bytes: %.160s", static_cast<unsigned>(s.size()), s.c_str());
+    for (size_t p = s.find("\\\""); p != std::string::npos; p = s.find("\\\"", p)) s.erase(p, 1);
+
+    const size_t docPos = s.find("\"document\"");
+    if (docPos == std::string::npos) {
         LOG_INF("HCV", "No search match for '%s'", q.c_str());
         return false;
     }
     int bookId = 0;
-    if (hit["id"].is<int>()) bookId = hit["id"].as<int>();
-    else bookId = atoi(hit["id"] | "0");
-    if (bookId == 0) return false;
+    {
+        size_t idPos = s.find("\"id\":", docPos);
+        if (idPos != std::string::npos) {
+            idPos += 5;
+            while (idPos < s.size() && (s[idPos] == ' ' || s[idPos] == '"')) idPos++;
+            bookId = atoi(s.c_str() + idPos);
+        }
+    }
+    if (bookId == 0) {
+        LOG_ERR("HCV", "Search result had no id");
+        return false;
+    }
 
     std::string names;
-    if (hit["author_names"].is<JsonArray>()) {
-        for (JsonVariant n : hit["author_names"].as<JsonArray>()) {
-            names += (n | "");
-            names += ' ';
+    {
+        size_t aPos = s.find("\"author_names\":[", docPos);
+        if (aPos != std::string::npos) {
+            size_t aEnd = s.find(']', aPos);
+            if (aEnd != std::string::npos) names = s.substr(aPos, aEnd - aPos);
         }
     }
     if (authorKey.size() >= 3 && !names.empty()) {
