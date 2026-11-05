@@ -478,7 +478,7 @@ bool lookupByTitle(const std::string& title, const std::string& author, const st
         size_t pPos = s.find("\"pages\":", docPos);
         if (pPos != std::string::npos) outEditionPages = atoi(s.c_str() + pPos + 8);
     }
-    if (outEditionPages <= 0) {
+    {
         char body3[240];
         snprintf(body3, sizeof(body3),
             "{\"query\":\"{editions(where:{book_id:{_eq:%d},pages:{_gt:0}},order_by:{users_count:desc},limit:1){id pages}}\"}", bookId);
@@ -682,7 +682,9 @@ bool syncBook(const InProgressBook& book, int userId, const std::string& token) 
     int resolvedUserBookId = upsertUserBook(bookId, userBookId, editionId, token);
     if (resolvedUserBookId == 0) return false;
 
-    userBookEdition(resolvedUserBookId, token, editionId, editionPages);
+    const bool haveUserEdition = userBookEdition(resolvedUserBookId, token, editionId, editionPages);
+    LOG_INF("HCV", "Edition for user_book %d: %s id=%d pages=%d", resolvedUserBookId,
+            haveUserEdition ? "from library" : "from lookup", editionId, editionPages);
     int absolutePage = 0;
     if (editionPages > 0)
         absolutePage = static_cast<int>(book.pct / 100.0f * editionPages + 0.5f);
