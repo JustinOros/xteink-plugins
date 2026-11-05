@@ -81,6 +81,7 @@ def get_manifest(ctx):
                     "                            LockscreenPlugin::shouldLock(lsMode);\n"
                     "    if (shouldLock) {\n"
                     "      LockscreenActivity lockAct(renderer, mappedInputManager, LockscreenActivity::Purpose::UNLOCK);\n"
+                    "      display.setInverted(SETTINGS.screenInverted != 0);\n"
                     "      lockAct.onEnter();\n"
                     "      lockAct.renderDirect();\n"
                     "      while (!lockAct.isDone()) {\n"
