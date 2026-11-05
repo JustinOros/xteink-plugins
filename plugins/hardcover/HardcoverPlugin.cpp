@@ -26,7 +26,9 @@ constexpr char CACHE_DIR[]     = "/.crosspoint";
 struct InProgressBook {
     std::string isbn;
     int         page;
-    int         pct;   // overall book progress percentage (1-100)
+    int         pct;
+    std::string title;
+    std::string author;
 };
 
 // ---- ISBN extraction -------------------------------------------------------
@@ -202,15 +204,15 @@ void collectBooks(std::vector<InProgressBook>& inProgress, std::vector<InProgres
         }
 
         std::string isbn = getIsbnFromEpub(epub, path);
-        if (isbn.empty()) {
-            LOG_INF("HCV", "Skip %s: no ISBN or ASIN in book", path.c_str());
+        if (isbn.empty() && epub.getTitle().empty()) {
+            LOG_INF("HCV", "Skip %s: no ISBN, ASIN or title in book", path.c_str());
             continue;
         }
 
         if (pct >= 100)
-            completed.push_back({isbn, page, pct});
+            completed.push_back({isbn, page, pct, epub.getTitle(), epub.getAuthor()});
         else
-            inProgress.push_back({isbn, page, pct});
+            inProgress.push_back({isbn, page, pct, epub.getTitle(), epub.getAuthor()});
     }
 }
 
@@ -341,6 +343,101 @@ bool lookupIds(const std::string& isbn, const std::string& token,
             isbn.c_str(), outBookId, outEditionPages, outUserBookId);
     return true;
 }
+std::string likePattern(const std::string& s) {
+    std::string out = "%";
+    bool lastWild = true;
+    for (char ch : s) {
+        if (isalnum(static_cast<unsigned char>(ch))) {
+            out += ch;
+            lastWild = false;
+        } else if (!lastWild) {
+            out += '%';
+            lastWild = true;
+        }
+        if (out.size() > 80) break;
+    }
+    if (!lastWild) out += '%';
+    return out;
+}
+
+std::string lastWord(const std::string& s) {
+    std::string w;
+    for (char ch : s) {
+        if (isalnum(static_cast<unsigned char>(ch))) w += ch;
+        else if (!w.empty() && ch == ' ') w.clear();
+        else if (ch == ',') break;
+    }
+    return w;
+}
+
+bool findUserBook(int bookId, const std::string& token, int& outUserBookId) {
+    char body2[200];
+    snprintf(body2, sizeof(body2),
+        "{\"query\":\"{me{user_books(where:{book_id:{_eq:%d}},limit:1){id}}}\"}", bookId);
+    String resp2 = graphqlPost(body2, token);
+    JsonDocument doc2;
+    if (resp2.isEmpty() || resp2.indexOf("\"errors\"") != -1) return false;
+    if (deserializeJson(doc2, resp2) != DeserializationError::Ok) return false;
+    JsonArray me = doc2["data"]["me"].as<JsonArray>();
+    outUserBookId = 0;
+    if (me.size() > 0) {
+        JsonArray ubs = me[0]["user_books"].as<JsonArray>();
+        if (ubs.size() > 0) outUserBookId = ubs[0]["id"] | 0;
+    }
+    return true;
+}
+
+bool lookupByTitle(const std::string& title, const std::string& author, const std::string& token,
+                   int& outBookId, int& outUserBookId, int& outEditionPages, int& outEditionId) {
+    if (title.empty()) return false;
+    const std::string titlePat = likePattern(title);
+    const std::string authorWord = lastWord(author);
+
+    for (int attempt = 0; attempt < 2; attempt++) {
+        if (attempt == 0 && authorWord.size() < 3) continue;
+        char body[640];
+        if (attempt == 0) {
+            snprintf(body, sizeof(body),
+                "{\"query\":\"{books(where:{title:{_ilike:\\\"%s\\\"},"
+                "contributions:{author:{name:{_ilike:\\\"%%%s%%\\\"}}}},"
+                "order_by:{users_count:desc},limit:1){id pages}}\"}",
+                titlePat.c_str(), authorWord.c_str());
+        } else {
+            snprintf(body, sizeof(body),
+                "{\"query\":\"{books(where:{title:{_ilike:\\\"%s\\\"}},"
+                "order_by:{users_count:desc},limit:1){id pages}}\"}",
+                titlePat.c_str());
+        }
+        String resp = graphqlPost(body, token);
+        if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) {
+            LOG_ERR("HCV", "Title lookup error: %s", resp.c_str());
+            continue;
+        }
+        JsonDocument doc;
+        if (deserializeJson(doc, resp) != DeserializationError::Ok) continue;
+        JsonArray books = doc["data"]["books"].as<JsonArray>();
+        if (books.size() == 0) continue;
+        outBookId = books[0]["id"] | 0;
+        outEditionPages = books[0]["pages"] | 0;
+        outEditionId = 0;
+        if (outBookId == 0) continue;
+        if (!findUserBook(outBookId, token, outUserBookId)) return false;
+        LOG_INF("HCV", "Title match '%s' -> book_id=%d pages=%d user_book_id=%d",
+                title.c_str(), outBookId, outEditionPages, outUserBookId);
+        return true;
+    }
+    LOG_INF("HCV", "No title match for '%s'", title.c_str());
+    return false;
+}
+
+bool lookupBook(const InProgressBook& book, const std::string& token,
+                int& outBookId, int& outUserBookId, int& outEditionPages, int& outEditionId) {
+    if (!book.isbn.empty() &&
+        lookupIds(book.isbn, token, outBookId, outUserBookId, outEditionPages, outEditionId))
+        return true;
+    return lookupByTitle(book.title, book.author, token, outBookId, outUserBookId, outEditionPages, outEditionId);
+}
+
 // Step 2: Upsert user_book status to Currently Reading (status_id=2).
 // Returns the user_book id (new or existing).
 int upsertUserBook(int bookId, int userBookId, const std::string& token) {
@@ -467,9 +564,9 @@ bool updateProgress(int userBookId, int page, int editionId, const std::string& 
 }
 
 // New function to mark books as Read (status_id=3)
-bool markAsRead(const std::string& isbn, const std::string& token) {
+bool markAsRead(const InProgressBook& book, const std::string& token) {
     int bookId = 0, userBookId = 0, editionPages = 0, editionId = 0;
-    if (!lookupIds(isbn, token, bookId, userBookId, editionPages, editionId)) return false;
+    if (!lookupBook(book, token, bookId, userBookId, editionPages, editionId)) return false;
     if (userBookId == 0) return false;
 
     char body[300];
@@ -507,7 +604,7 @@ bool userBookEdition(int userBookId, const std::string& token, int& editionId, i
 
 bool syncBook(const InProgressBook& book, int userId, const std::string& token) {
     int bookId = 0, userBookId = 0, editionPages = 0, editionId = 0;
-    if (!lookupIds(book.isbn, token, bookId, userBookId, editionPages, editionId)) return false;
+    if (!lookupBook(book, token, bookId, userBookId, editionPages, editionId)) return false;
 
     // Ensure book is in library as Currently Reading
     int resolvedUserBookId = upsertUserBook(bookId, userBookId, token);
@@ -562,7 +659,7 @@ SyncResult syncProgress() {
     }
 
     for (const auto& b : completedBooks) {
-        if (!markAsRead(b.isbn, token))
+        if (!markAsRead(b, token))
             allOk = false;
     }
     
