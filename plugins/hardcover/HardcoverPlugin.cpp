@@ -343,20 +343,20 @@ bool lookupIds(const std::string& isbn, const std::string& token,
             isbn.c_str(), outBookId, outEditionPages, outUserBookId);
     return true;
 }
-std::string likePattern(const std::string& s) {
-    std::string out = "%";
-    bool lastWild = true;
+std::string plainWords(const std::string& s) {
+    std::string out;
+    bool lastSpace = true;
     for (char ch : s) {
         if (isalnum(static_cast<unsigned char>(ch))) {
             out += ch;
-            lastWild = false;
-        } else if (!lastWild) {
-            out += '%';
-            lastWild = true;
+            lastSpace = false;
+        } else if (!lastSpace) {
+            out += ' ';
+            lastSpace = true;
         }
-        if (out.size() > 80) break;
+        if (out.size() > 90) break;
     }
-    if (!lastWild) out += '%';
+    while (!out.empty() && out.back() == ' ') out.pop_back();
     return out;
 }
 
@@ -390,44 +390,72 @@ bool findUserBook(int bookId, const std::string& token, int& outUserBookId) {
 bool lookupByTitle(const std::string& title, const std::string& author, const std::string& token,
                    int& outBookId, int& outUserBookId, int& outEditionPages, int& outEditionId) {
     if (title.empty()) return false;
-    const std::string titlePat = likePattern(title);
-    const std::string authorWord = lastWord(author);
+    std::string q = plainWords(title);
+    const std::string authorWords = plainWords(author);
+    if (!authorWords.empty()) q += " " + authorWords;
+    const std::string authorKey = lastWord(author);
 
-    for (int attempt = 0; attempt < 2; attempt++) {
-        if (attempt == 0 && authorWord.size() < 3) continue;
-        char body[640];
-        if (attempt == 0) {
-            snprintf(body, sizeof(body),
-                "{\"query\":\"{books(where:{title:{_ilike:\\\"%s\\\"},"
-                "contributions:{author:{name:{_ilike:\\\"%%%s%%\\\"}}}},"
-                "order_by:{users_count:desc},limit:1){id pages}}\"}",
-                titlePat.c_str(), authorWord.c_str());
-        } else {
-            snprintf(body, sizeof(body),
-                "{\"query\":\"{books(where:{title:{_ilike:\\\"%s\\\"}},"
-                "order_by:{users_count:desc},limit:1){id pages}}\"}",
-                titlePat.c_str());
-        }
-        String resp = graphqlPost(body, token);
-        if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) {
-            LOG_ERR("HCV", "Title lookup error: %s", resp.c_str());
-            continue;
-        }
-        JsonDocument doc;
-        if (deserializeJson(doc, resp) != DeserializationError::Ok) continue;
-        JsonArray books = doc["data"]["books"].as<JsonArray>();
-        if (books.size() == 0) continue;
-        outBookId = books[0]["id"] | 0;
-        outEditionPages = books[0]["pages"] | 0;
-        outEditionId = 0;
-        if (outBookId == 0) continue;
-        if (!findUserBook(outBookId, token, outUserBookId)) return false;
-        LOG_INF("HCV", "Title match '%s' -> book_id=%d pages=%d user_book_id=%d",
-                title.c_str(), outBookId, outEditionPages, outUserBookId);
-        return true;
+    char body[400];
+    snprintf(body, sizeof(body),
+        "{\"query\":\"{search(query:\\\"%s\\\",query_type:\\\"Book\\\",per_page:1,page:1){results}}\"}",
+        q.c_str());
+    String resp = graphqlPost(body, token);
+    if (resp.isEmpty() || resp.indexOf("\"errors\"") != -1) {
+        LOG_ERR("HCV", "Search error: %s", resp.c_str());
+        return false;
     }
-    LOG_INF("HCV", "No title match for '%s'", title.c_str());
-    return false;
+    JsonDocument filter;
+    filter["data"]["search"]["results"]["hits"][0]["document"]["id"] = true;
+    filter["data"]["search"]["results"]["hits"][0]["document"]["title"] = true;
+    filter["data"]["search"]["results"]["hits"][0]["document"]["author_names"] = true;
+    JsonDocument doc;
+    if (deserializeJson(doc, resp, DeserializationOption::Filter(filter)) != DeserializationError::Ok) {
+        LOG_ERR("HCV", "Search parse failed");
+        return false;
+    }
+    JsonVariant hit = doc["data"]["search"]["results"]["hits"][0]["document"];
+    if (hit.isNull()) {
+        LOG_INF("HCV", "No search match for '%s'", q.c_str());
+        return false;
+    }
+    int bookId = 0;
+    if (hit["id"].is<int>()) bookId = hit["id"].as<int>();
+    else bookId = atoi(hit["id"] | "0");
+    if (bookId == 0) return false;
+
+    std::string names;
+    if (hit["author_names"].is<JsonArray>()) {
+        for (JsonVariant n : hit["author_names"].as<JsonArray>()) {
+            names += (n | "");
+            names += ' ';
+        }
+    }
+    if (authorKey.size() >= 3 && !names.empty()) {
+        std::string lowNames = names, lowKey = authorKey;
+        for (auto& ch : lowNames) ch = tolower(static_cast<unsigned char>(ch));
+        for (auto& ch : lowKey) ch = tolower(static_cast<unsigned char>(ch));
+        if (lowNames.find(lowKey) == std::string::npos) {
+            LOG_INF("HCV", "Search result author mismatch for '%s': %s", q.c_str(), names.c_str());
+            return false;
+        }
+    }
+
+    char body2[200];
+    snprintf(body2, sizeof(body2), "{\"query\":\"{books(where:{id:{_eq:%d}}){id pages}}\"}", bookId);
+    String resp2 = graphqlPost(body2, token);
+    outEditionPages = 0;
+    outEditionId = 0;
+    JsonDocument doc2;
+    if (!resp2.isEmpty() && resp2.indexOf("\"errors\"") == -1 &&
+        deserializeJson(doc2, resp2) == DeserializationError::Ok) {
+        JsonArray books = doc2["data"]["books"].as<JsonArray>();
+        if (books.size() > 0) outEditionPages = books[0]["pages"] | 0;
+    }
+    outBookId = bookId;
+    if (!findUserBook(bookId, token, outUserBookId)) return false;
+    LOG_INF("HCV", "Search match '%s' -> book_id=%d pages=%d user_book_id=%d",
+            q.c_str(), bookId, outEditionPages, outUserBookId);
+    return true;
 }
 
 bool lookupBook(const InProgressBook& book, const std::string& token,
