@@ -212,7 +212,6 @@ void AudiobookshelfActivity::enterBrowse() {
   statusText.clear();
   buildRows();
   selected = 0;
-  moveSelection(1);
   lastInput = millis();
   requestUpdate();
 }
@@ -229,17 +228,18 @@ void AudiobookshelfActivity::buildRows() {
   rows.clear();
   if (view == View::MAIN) {
     rows.push_back({RowKind::SEARCH_FIELD, "", {}});
-    rows.push_back({RowKind::SEARCH_OK, "OK", {}});
     const char* order[] = {"continue-reading", "recently-added", "recent-series", "discover"};
     for (const char* id : order) {
       for (const auto& shelf : shelves) {
         if (shelf.id != id || shelf.items.empty()) continue;
+        rows.push_back({RowKind::HEADING, "", {}});
         rows.push_back({RowKind::HEADING, std::string(shelfLabel(id)) + ":", {}});
         for (const auto& item : shelf.items) {
           rows.push_back({item.isSeries ? RowKind::SERIES : RowKind::ITEM, AbsParse::itemLabel(item), item});
         }
       }
     }
+    rows.push_back({RowKind::HEADING, "", {}});
     rows.push_back({RowKind::LOGOUT, "Logout", {}});
     return;
   }
@@ -317,7 +317,13 @@ void AudiobookshelfActivity::handleBrowseConfirm() {
   switch (row.kind) {
     case RowKind::SEARCH_FIELD:
       editText("Search", searchQuery, 63, InputType::Text,
-               [this](const std::string& t) { searchQuery = t; });
+               [this](const std::string& t) {
+                 searchQuery = t;
+                 if (t.empty()) return;
+                 statusText.clear();
+                 setBusy("Searching...");
+                 pending = Pending::SEARCH;
+               });
       break;
     case RowKind::SEARCH_OK:
       if (searchQuery.empty()) {
