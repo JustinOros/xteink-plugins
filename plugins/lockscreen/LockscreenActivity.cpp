@@ -9,13 +9,6 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
-static constexpr int CARD_MARGIN = 30;
-
-static constexpr int KEY_W     = 110;
-static constexpr int KEY_H     = 72;
-static constexpr int KEY_PAD_X = 14;
-static constexpr int KEY_PAD_Y = 10;
-
 void LockscreenActivity::onEnter() {
     Activity::onEnter();
     success_       = false;
@@ -72,6 +65,8 @@ void LockscreenActivity::submitPin() {
 void LockscreenActivity::pressCurrentKey() {
     const char* key = KEYS[cursorRow_][cursorCol_];
 
+    if (key[0] == '\0') return;
+
     if (strcmp(key, "<") == 0) {
         if (pinLen_ > 0) {
             pinLen_--;
@@ -79,11 +74,6 @@ void LockscreenActivity::pressCurrentKey() {
         }
         renderPending_ = true;
         requestUpdate();
-        return;
-    }
-
-    if (strcmp(key, "OK") == 0) {
-        submitPin();
         return;
     }
 
@@ -98,88 +88,100 @@ void LockscreenActivity::pressCurrentKey() {
     }
 }
 
-void LockscreenActivity::renderPinDisplay(int inputX, int inputY, int inputLineY, int inputW, bool masked) const {
-    char dotStr[PIN_LEN * 4 + 2] = {};
-    int pos = 0;
-    for (int i = 0; i < pinLen_; i++) {
-        if (masked) {
-            dotStr[pos++] = '\xe2';
-            dotStr[pos++] = '\x80';
-            dotStr[pos++] = '\xa2';
-        } else {
-            dotStr[pos++] = pin_[i];
-        }
+void LockscreenActivity::moveCursor(int dRow, int dCol) {
+    for (int i = 0; i < ROWS * COLS; i++) {
+        cursorRow_ = (cursorRow_ + dRow + ROWS) % ROWS;
+        cursorCol_ = (cursorCol_ + dCol + COLS) % COLS;
+        if (KEYS[cursorRow_][cursorCol_][0] != '\0') return;
     }
-    dotStr[pos] = '\0';
-
-    renderer.drawText(UI_12_FONT_ID, inputX, inputY, dotStr, true, EpdFontFamily::BOLD);
-    renderer.drawLine(inputX, inputLineY, inputX + inputW, inputLineY);
 }
 
-void LockscreenActivity::renderKeypad(int gridX, int gridY) const {
+void LockscreenActivity::renderDots(int centerX, int centerY) const {
+    constexpr int DOT = 26;
+    constexpr int GAP = 34;
+    const int total  = PIN_LEN * DOT + (PIN_LEN - 1) * GAP;
+    const int startX = centerX - total / 2;
+    for (int i = 0; i < PIN_LEN; i++) {
+        const int x = startX + i * (DOT + GAP);
+        const int y = centerY - DOT / 2;
+        if (i < pinLen_) {
+            renderer.fillRoundedRect(x, y, DOT, DOT, DOT / 2, Color::Black);
+        } else {
+            renderer.drawRoundedRect(x, y, DOT, DOT, 2, DOT / 2, true);
+        }
+    }
+}
+
+void LockscreenActivity::renderBackspaceIcon(int cx, int cy, bool dark) const {
+    constexpr int W = 46;
+    constexpr int H = 32;
+    const int x0 = cx - W / 2;
+    const int top = cy - H / 2;
+    const int bottom = cy + H / 2;
+    const int tip = x0 + H / 2;
+    renderer.drawLine(x0, cy, tip, top, 2, dark);
+    renderer.drawLine(tip, top, x0 + W, top, 2, dark);
+    renderer.drawLine(x0 + W, top, x0 + W, bottom, 2, dark);
+    renderer.drawLine(x0 + W, bottom, tip, bottom, 2, dark);
+    renderer.drawLine(tip, bottom, x0, cy, 2, dark);
+    const int mx = x0 + (W + H / 2) / 2;
+    renderer.drawLine(mx - 6, cy - 6, mx + 6, cy + 6, 2, dark);
+    renderer.drawLine(mx - 6, cy + 6, mx + 6, cy - 6, 2, dark);
+}
+
+void LockscreenActivity::renderKeypad(int top, int bottom) const {
+    const int screenW = renderer.getScreenWidth();
+    constexpr int SIDE = 30;
+    const int colW = (screenW - 2 * SIDE) / COLS;
+    const int rowH = (bottom - top) / ROWS;
+    const int half = (colW < rowH ? colW : rowH) / 2 - 6;
+    const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
+
     for (int r = 0; r < ROWS; r++) {
         for (int c = 0; c < COLS; c++) {
-            int kx = gridX + c * (KEY_W + KEY_PAD_X);
-            int ky = gridY + r * (KEY_H + KEY_PAD_Y);
-            bool isCursor = (r == cursorRow_ && c == cursorCol_);
+            const char* label = KEYS[r][c];
+            if (label[0] == '\0') continue;
 
-            const char* displayLabel = KEYS[r][c];
+            const int cx = SIDE + c * colW + colW / 2;
+            const int cy = top + r * rowH + rowH / 2;
+            const bool isCursor = (r == cursorRow_ && c == cursorCol_);
 
             if (isCursor) {
-                constexpr int HL_PAD = 8;
-                renderer.fillRect(kx - HL_PAD, ky - HL_PAD / 2,
-                                  KEY_W + HL_PAD * 2, KEY_H + HL_PAD, true);
-                renderer.drawText(UI_12_FONT_ID,
-                                  kx + KEY_W / 2 - 8,
-                                  ky + KEY_H / 2 - 10,
-                                  displayLabel, false, EpdFontFamily::BOLD);
+                renderer.fillRoundedRect(cx - half, cy - half, half * 2, half * 2, 14, Color::Black);
+            }
+
+            if (strcmp(label, "<") == 0) {
+                renderBackspaceIcon(cx, cy, !isCursor);
             } else {
-                renderer.drawText(UI_12_FONT_ID,
-                                  kx + KEY_W / 2 - 8,
-                                  ky + KEY_H / 2 - 10,
-                                  displayLabel, true, EpdFontFamily::REGULAR);
+                const int w = renderer.getTextWidth(UI_12_FONT_ID, label, EpdFontFamily::BOLD);
+                renderer.drawText(UI_12_FONT_ID, cx - w / 2, cy - lineH / 2, label, !isCursor, EpdFontFamily::BOLD);
             }
         }
     }
 }
 
 void LockscreenActivity::render(RenderLock&&) {
-    const bool isCreate = (purpose_ == Purpose::CREATE);
-    const bool masked   = !isCreate;
-
     const int screenW = renderer.getScreenWidth();
     const int screenH = renderer.getScreenHeight();
-
-    const int cardX = CARD_MARGIN;
-    const int cardY = CARD_MARGIN;
     const auto& metrics = UITheme::getInstance().getMetrics();
-    const int cardW = screenW - 2 * CARD_MARGIN - 5;
-    const int cardH = screenH - 2 * CARD_MARGIN - metrics.buttonHintsHeight;
-
-    const int titleY     = cardY + 36;
-    const int inputY     = cardY + 110;
-    const int inputLineY = inputY + 42;
-    const int inputX     = cardX + 30;
-    const int inputW     = cardW - 60;
-
-    const int gridW = COLS * KEY_W + (COLS - 1) * KEY_PAD_X;
-    const int gridX = (screenW - gridW) / 2;
-    const int gridY = inputLineY + 60;
+    const int usableH = screenH - metrics.buttonHintsHeight;
 
     renderer.clearScreen();
-    renderer.drawRect(cardX, cardY, cardW, cardH);
 
-    const char* title = isCreate ? "Set Passcode" : "Enter Passcode";
-    renderer.drawText(UI_12_FONT_ID, cardX + 30, titleY, title, true, EpdFontFamily::BOLD);
+    const char* title = (purpose_ == Purpose::CREATE) ? "Set passcode" : "Enter passcode";
+    const int titleW = renderer.getTextWidth(UI_12_FONT_ID, title, EpdFontFamily::BOLD);
+    renderer.drawText(UI_12_FONT_ID, (screenW - titleW) / 2, usableH * 9 / 100, title, true, EpdFontFamily::BOLD);
 
-    renderPinDisplay(inputX, inputY, inputLineY, inputW, masked);
-    renderKeypad(gridX, gridY);
+    const int dotsY = usableH * 21 / 100;
+    renderDots(screenW / 2, dotsY);
 
     if (attempts_ > 0) {
         char msg[48];
         snprintf(msg, sizeof(msg), "Incorrect PIN. %d attempt(s) remaining.", MAX_ATTEMPTS - attempts_);
-        renderer.drawCenteredText(UI_10_FONT_ID, cardY + cardH - 28, msg);
+        renderer.drawCenteredText(UI_10_FONT_ID, dotsY + 40, msg);
     }
+
+    renderKeypad(usableH * 33 / 100, usableH - 20);
 
     GUI.drawButtonHints(renderer, "Delete", "Select", "Left", "Right");
     GUI.drawSideButtonHints(renderer, "Up", "Down");
@@ -206,19 +208,19 @@ void LockscreenActivity::loop() {
     }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
-        cursorRow_     = (cursorRow_ - 1 + ROWS) % ROWS;
+        moveCursor(-1, 0);
         renderPending_ = true;
         requestUpdate();
     } else if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
-        cursorRow_     = (cursorRow_ + 1) % ROWS;
+        moveCursor(1, 0);
         renderPending_ = true;
         requestUpdate();
     } else if (mappedInput.wasPressed(MappedInputManager::Button::Left)) {
-        cursorCol_     = (cursorCol_ - 1 + COLS) % COLS;
+        moveCursor(0, -1);
         renderPending_ = true;
         requestUpdate();
     } else if (mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-        cursorCol_     = (cursorCol_ + 1) % COLS;
+        moveCursor(0, 1);
         renderPending_ = true;
         requestUpdate();
     } else if (mappedInput.wasPressed(MappedInputManager::Button::Power) ||

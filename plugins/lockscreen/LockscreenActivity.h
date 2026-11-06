@@ -39,7 +39,7 @@ class LockscreenActivity final : public Activity {
         {"1", "2", "3"},
         {"4", "5", "6"},
         {"7", "8", "9"},
-        {"<", "0", "OK"},
+        {"", "0", "<"},
     };
 
     Purpose purpose_;
@@ -60,7 +60,9 @@ class LockscreenActivity final : public Activity {
 
     void pressCurrentKey();
     void submitPin();
-    void renderPinDisplay(int inputX, int inputY, int inputLineY, int inputW, bool masked) const;
-    void renderKeypad(int gridX, int gridY) const;
+    void moveCursor(int dRow, int dCol);
+    void renderDots(int centerX, int centerY) const;
+    void renderBackspaceIcon(int cx, int cy, bool dark) const;
+    void renderKeypad(int top, int bottom) const;
     void goToSleep();
 };
