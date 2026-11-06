@@ -120,11 +120,20 @@ try {
     }
 
     Write-Host ""
+    Write-Host "Everything needed is installed." -ForegroundColor Green
+    $answer = Read-Host "Default Yes to all prompts? [Y/n]"
+    $installerArgs = @()
+    if ($answer -eq "" -or $answer -match "^[Yy]") {
+        $installerArgs += "--yes"
+    }
+    $installerArgs += $args
+
+    Write-Host ""
     Write-Host "Connect your XTEINK reader with a USB cable and turn it on." -ForegroundColor Yellow
     Read-Host "Press Enter when it is connected"
 
     Invoke-WithRetry "The installer" {
-        & $python install.py @args
+        & $python install.py @installerArgs
     }
 
     Write-Host ""
