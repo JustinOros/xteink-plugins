@@ -283,7 +283,8 @@ def clone_repo(force: bool = True):
         print(f"  Removing existing '{REPO_DIR}'...")
         rmtree(REPO_DIR)
 
-    run(f"git clone --recursive {REPO_URL} {REPO_DIR}")
+    run(f"git -c core.autocrlf=false -c core.eol=lf clone --recursive {REPO_URL} {REPO_DIR}")
+    run("git config core.autocrlf false", cwd=REPO_DIR)
 
 
 def clear_plugin_caches():
