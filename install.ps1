@@ -22,6 +22,24 @@ function Install-Package($id, $label) {
     Update-SessionPath
 }
 
+function Invoke-WithRetry($label, [scriptblock]$action) {
+    $maxAttempts = 3
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        $global:LASTEXITCODE = 0
+        try {
+            & $action
+            if ($LASTEXITCODE -eq 0) { return }
+        } catch {
+            Write-Host $_.Exception.Message -ForegroundColor Red
+        }
+        if ($attempt -lt $maxAttempts) {
+            Write-Host "$label failed (attempt $attempt of $maxAttempts). Retrying in 10 seconds..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 10
+        }
+    }
+    throw "$label failed after $maxAttempts attempts. Check your internet connection and run this script again."
+}
+
 function Get-PythonExe {
     $candidates = @(
         { & py -3 -c "import sys; print(sys.executable)" 2>$null },
@@ -83,10 +101,12 @@ try {
     Set-Location $projectDir
 
     Write-Host "Installing required Python packages..." -ForegroundColor Cyan
-    & $python -m pip install --upgrade pip | Out-Host
-    & $python -m pip install --upgrade platformio | Out-Host
-    if (Test-Path "requirements.txt") {
-        & $python -m pip install -r requirements.txt | Out-Host
+    Invoke-WithRetry "Installing Python packages" {
+        & $python -m pip install --upgrade pip | Out-Host
+        & $python -m pip install --upgrade platformio | Out-Host
+        if (Test-Path "requirements.txt") {
+            & $python -m pip install -r requirements.txt | Out-Host
+        }
     }
 
     $scriptsDir = & $python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
@@ -103,9 +123,8 @@ try {
     Write-Host "Connect your XTEINK reader with a USB cable and turn it on." -ForegroundColor Yellow
     Read-Host "Press Enter when it is connected"
 
-    & $python install.py @args
-    if ($LASTEXITCODE -ne 0) {
-        throw "The installer reported a problem (exit code $LASTEXITCODE). Scroll up to read the message."
+    Invoke-WithRetry "The installer" {
+        & $python install.py @args
     }
 
     Write-Host ""
