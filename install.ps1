@@ -120,7 +120,7 @@ try {
     Write-Host "Installing required Python packages..." -ForegroundColor Cyan
     Invoke-WithRetry "Installing Python packages" {
         & $python -m pip install --upgrade pip | Out-Host
-        & $python -m pip install --upgrade platformio | Out-Host
+        & $python -m pip install "platformio==6.1.19" | Out-Host
         if (Test-Path "requirements.txt") {
             & $python -m pip install -r requirements.txt | Out-Host
         }
