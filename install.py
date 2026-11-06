@@ -17,10 +17,20 @@ REPO_DIR    = "crosspoint-reader"
 PLUGINS_DIR = "plugins"
 
 ENVIRONMENTS = {
-    "default":    "Debug logging enabled, version from current git branch (recommended)",
-    "gh_release": "Info logging only, version hardcoded to release tag",
-    "slim":       "No serial logging, smallest binary size",
+    "default":          "Xteink X3/X4 (ESP32-C3): debug logging, version from current git branch",
+    "gh_release":       "Xteink X3/X4 (ESP32-C3): info logging only, version hardcoded to release tag",
+    "slim":             "Xteink X3/X4 (ESP32-C3): no serial logging, smallest binary size",
+    "x4pro":            "Xteink X4 Pro (ESP32-S3, touchscreen and frontlight)",
+    "x4pro-gh_release": "Xteink X4 Pro (ESP32-S3): info logging only",
+    "x4c":              "Xteink X4 Classic (ESP32-S3, buttons only)",
 }
+
+PIO_MAX_PYTHON = (3, 13)
+USE_PIO_BINARY = os.name != "nt" and shutil.which("pio") is not None
+PIO_CMD = "pio" if USE_PIO_BINARY else f'"{sys.executable}" -m platformio'
+
+AUTO_ENV_C3 = "default"
+AUTO_ENV_S3 = "x4pro"
 
 BAUD_RATES = {
     "1": ("115200", "Recommended - most reliable, avoids 'chip stopped responding'"),
@@ -393,6 +403,75 @@ def detect_serial_ports():
     return sorted(port_map.items())
 
 
+def esptool_chip_name(port):
+    for base in ("esptool", f"{sys.executable} -m esptool"):
+        try:
+            result = subprocess.run(
+                f"{base} --port {port} chip-id",
+                shell=True, capture_output=True, text=True, timeout=45,
+            )
+        except (subprocess.TimeoutExpired, OSError):
+            continue
+        text = (result.stdout or "") + (result.stderr or "")
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("Chip type:") or line.startswith("Detecting chip type"):
+                if "ESP32-S3" in line:
+                    return "ESP32-S3"
+                if "ESP32-C3" in line:
+                    return "ESP32-C3"
+            if line.startswith("Chip is "):
+                if "ESP32-S3" in line:
+                    return "ESP32-S3"
+                if "ESP32-C3" in line:
+                    return "ESP32-C3"
+        if "ESP32-S3" in text:
+            return "ESP32-S3"
+        if "ESP32-C3" in text:
+            return "ESP32-C3"
+    return None
+
+
+def pick_s3_environment(port_description, yes_all):
+    label = (port_description or "").lower()
+    if "x4_pro" in label or "x4 pro" in label:
+        return "x4pro"
+    if "x4_classic" in label or "x4 classic" in label:
+        return "x4c"
+    if yes_all:
+        return AUTO_ENV_S3
+    print("\n  An ESP32-S3 device was detected. Which one is it?")
+    print("    1. Xteink X4 Pro (touchscreen and frontlight)  <- default")
+    print("    2. Xteink X4 Classic (buttons only)")
+    choice = input("\n  Press ENTER for 1, or enter 1-2: ").strip()
+    return "x4c" if choice == "2" else "x4pro"
+
+
+def auto_detect_environment(yes_all):
+    print("Detecting connected device...")
+    ports = detect_serial_ports()
+    if not ports:
+        print(f"  No device detected, using the {AUTO_ENV_C3} (X3/X4) build.")
+        print("  If you have an X4 Pro, connect it and re-run, or use: -e x4pro")
+        return AUTO_ENV_C3
+
+    cu_ports = [(d, desc) for d, desc in ports if d.startswith("/dev/cu.")]
+    ordered = cu_ports + [p for p in ports if p not in cu_ports]
+    for device, description in ordered:
+        chip = esptool_chip_name(device)
+        if chip == "ESP32-C3":
+            print(f"  Found {chip} on {device}: Xteink X3/X4")
+            return AUTO_ENV_C3
+        if chip == "ESP32-S3":
+            env = pick_s3_environment(description, yes_all)
+            print(f"  Found {chip} on {device}: building for {env}")
+            return env
+
+    print(f"  Could not identify the chip, using the {AUTO_ENV_C3} (X3/X4) build.")
+    print("  If you have an X4 Pro, use: -e x4pro")
+    return AUTO_ENV_C3
+
+
 def prompt_for_upload_port():
     print("\n[3/3] Select serial port for flashing...")
 
@@ -477,7 +556,7 @@ def prompt_for_baud_rate(override: str | None, yes_all: bool = False):
 
 def build_and_flash(environment: str, baud_rate: str):
     print(f"\nBuilding firmware with PlatformIO (environment: {environment})...")
-    run(f"pio run --environment {environment}", cwd=REPO_DIR)
+    run(f"{PIO_CMD} run --environment {environment}", cwd=REPO_DIR)
 
     port = prompt_for_upload_port()
 
@@ -487,7 +566,7 @@ def build_and_flash(environment: str, baud_rate: str):
 
     print(f"\n  Flashing to {port} at {baud_rate} baud...")
     run(
-        f"pio run --target upload --environment {environment} --upload-port {port}",
+        f"{PIO_CMD} run --target upload --environment {environment} --upload-port {port}",
         cwd=REPO_DIR,
     )
 
@@ -500,10 +579,10 @@ def parse_args():
     env_help = "\n".join(f"  {name}: {desc}" for name, desc in ENVIRONMENTS.items())
     parser.add_argument(
         "-e", "--environment",
-        default="default",
+        default=None,
         choices=ENVIRONMENTS.keys(),
         metavar="ENV",
-        help=f"PlatformIO build environment (default: default)\n{env_help}",
+        help=f"PlatformIO build environment (default: auto-detect from the connected device)\n{env_help}",
     )
     parser.add_argument(
         "-y", "--yes",
@@ -530,7 +609,20 @@ def parse_args():
     return parser.parse_args()
 
 
+def check_python_version():
+    if USE_PIO_BINARY or (3, 10) <= sys.version_info[:2] <= PIO_MAX_PYTHON:
+        return
+    found = f"{sys.version_info.major}.{sys.version_info.minor}"
+    print(f"ERROR: PlatformIO needs Python 3.10 to 3.13, but this is Python {found}.")
+    print("  Install Python 3.12, then run the installer with it:")
+    print("    winget install Python.Python.3.12")
+    print("    py -3.12 -m pip install -r requirements.txt esptool")
+    print("    py -3.12 install.py")
+    sys.exit(1)
+
+
 def main():
+    check_python_version()
     args = parse_args()
 
     print("=" * 60)
@@ -542,13 +634,14 @@ def main():
     print("  no responsibility for any damage that may occur to your")
     print("  device as a result of using this installer.")
     print()
-    print(f"  Environment : {args.environment}")
-    print(f"  {ENVIRONMENTS[args.environment]}")
-    print()
     answer = input("  Do you wish to proceed? [Y/n]: ").strip().lower() if not args.yes else "y"
     if answer not in ("", "y", "yes"):
         print("  Aborted.")
         sys.exit(0)
+    print()
+    environment = args.environment or auto_detect_environment(args.yes)
+    print(f"\n  Environment : {environment}")
+    print(f"  {ENVIRONMENTS[environment]}")
     print()
     restore_from_backup(yes_all=args.yes)
     backup_device(yes_all=args.yes)
@@ -557,7 +650,7 @@ def main():
     chosen_plugins = select_plugins(yes_all=args.yes)
     apply_plugins(chosen_plugins, yes_all=args.yes)
     baud_rate = prompt_for_baud_rate(args.baud, yes_all=args.yes)
-    build_and_flash(args.environment, baud_rate)
+    build_and_flash(environment, baud_rate)
     print("\nDone.")
 
 
