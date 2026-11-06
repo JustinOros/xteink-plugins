@@ -41,19 +41,20 @@ function Invoke-WithRetry($label, [scriptblock]$action) {
 }
 
 function Get-PythonExe {
-    $candidates = @(
-        { & py -3 -c "import sys; print(sys.executable)" 2>$null },
-        { & python -c "import sys; print(sys.executable)" 2>$null }
-    )
-    foreach ($candidate in $candidates) {
+    foreach ($ver in @("3.13", "3.12", "3.11", "3.10")) {
         try {
-            $path = (& $candidate | Select-Object -First 1)
-            if ($path -and (Test-Path $path) -and ($path -notmatch "WindowsApps")) {
-                $version = & $path -c "import sys; print(sys.version_info.major * 100 + sys.version_info.minor)"
-                if ([int]$version -ge 310) { return $path }
-            }
+            $path = & py "-$ver" -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
+            if ($LASTEXITCODE -eq 0 -and $path -and (Test-Path $path)) { return $path }
         } catch {
         }
+    }
+    try {
+        $path = & python -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
+        if ($path -and (Test-Path $path) -and ($path -notmatch "WindowsApps")) {
+            $version = & $path -c "import sys; print(sys.version_info.major * 100 + sys.version_info.minor)"
+            if ([int]$version -ge 310 -and [int]$version -le 313) { return $path }
+        }
+    } catch {
     }
     return $null
 }
@@ -83,7 +84,7 @@ try {
         $python = Get-PythonExe
     }
     if (-not $python) {
-        throw "Python 3.10 or newer could not be installed. Install it from python.org (tick 'Add python.exe to PATH'), then run this script again."
+        throw "Python 3.12 could not be installed. Install Python 3.12 from python.org (tick 'Add python.exe to PATH'), then run this script again."
     }
     Write-Host "Using Python at $python" -ForegroundColor Cyan
 
