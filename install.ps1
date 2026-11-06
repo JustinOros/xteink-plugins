@@ -40,20 +40,36 @@ function Invoke-WithRetry($label, [scriptblock]$action) {
     throw "$label failed after $maxAttempts attempts. Check your internet connection and run this script again."
 }
 
+function Test-PythonPath($path) {
+    if (-not $path -or -not (Test-Path $path) -or ($path -match "WindowsApps")) { return $false }
+    try {
+        $version = [int](& $path -c "import sys; print(sys.version_info.major * 100 + sys.version_info.minor)" 2>$null | Out-String).Trim()
+        return ($version -ge 310 -and $version -le 313)
+    } catch {
+        return $false
+    }
+}
+
 function Get-PythonExe {
+    foreach ($ver in @("313", "312", "311", "310")) {
+        $candidates = @(
+            (Join-Path $env:LOCALAPPDATA "Programs\Python\Python$ver\python.exe"),
+            (Join-Path $env:ProgramFiles "Python$ver\python.exe")
+        )
+        foreach ($candidate in $candidates) {
+            if (Test-PythonPath $candidate) { return $candidate }
+        }
+    }
     foreach ($ver in @("3.13", "3.12", "3.11", "3.10")) {
         try {
-            $path = & py "-$ver" -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
-            if ($LASTEXITCODE -eq 0 -and $path -and (Test-Path $path)) { return $path }
+            $path = (& py "-$ver" -c "import sys; print(sys.executable)" 2>$null | Out-String).Trim()
+            if (Test-PythonPath $path) { return $path }
         } catch {
         }
     }
     try {
-        $path = & python -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1
-        if ($path -and (Test-Path $path) -and ($path -notmatch "WindowsApps")) {
-            $version = & $path -c "import sys; print(sys.version_info.major * 100 + sys.version_info.minor)"
-            if ([int]$version -ge 310 -and [int]$version -le 313) { return $path }
-        }
+        $path = (& python -c "import sys; print(sys.executable)" 2>$null | Out-String).Trim()
+        if (Test-PythonPath $path) { return $path }
     } catch {
     }
     return $null
