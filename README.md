@@ -14,7 +14,7 @@ A plugin system for customizing and extending https://github.com/crosspoint-read
 
 The installer always builds against the latest crosspoint-reader. Plugins are opened from the Plugins row at the bottom of the main Settings screen.
 
-Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase and Snake Game.
+Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase, Minesweeper Game and Snake Game.
 
 Skipped by the installer until they are ported: Dark Mode, Smaller Fonts, Bookerly Font and GitHub Sync. Dark Mode is not needed on the latest crosspoint-reader, which has a built-in Night Mode.
 
@@ -159,6 +159,19 @@ Adds an original maze game where you clear every pellet while three chasers hunt
 - Swipe, tap the side you want to go, or use the 4 front buttons (Left / Right / Up / Down)
 - Eat a large pellet in a corner to turn the chasers hollow and eat them for bonus points
 - You have 3 lives; any front button or tap restarts after game over and Power exits
+
+---
+
+### Minesweeper Game
+
+Adds Minesweeper, launched from the Plugins row in Settings.
+
+- Pick Easy (9 x 9, 10 mines), Medium (12 x 14, 30 mines) or Hard (14 x 16, 45 mines)
+- Tap a square to dig; the first square you dig is always safe and numbers show how many mines touch a square
+- Hold a square to place or remove a flag, or switch the Dig / Flag bar at the bottom of the screen
+- Tap a number that already has enough flags around it to dig all the squares next to it
+- With buttons: Left / Right / Up / Down move the cursor, Select digs and Back flags; Power exits
+- Clear every safe square to win; the finishing time is shown
 
 ---
 
@@ -310,6 +323,10 @@ xteink-plugins/
     ├── mazechase/
     │   ├── plugin.py
     │   └── MazeChaseActivity.h/.cpp
+    ├── minesweeper/
+    │   ├── plugin.py
+    │   ├── MinesweeperBoard.h
+    │   └── MinesweeperActivity.h/.cpp
     ├── snakegame/
     │   ├── plugin.py
     │   └── SnakeActivity.h/.cpp
