@@ -118,8 +118,8 @@ Adds a classic Pong game against a CPU opponent, launched from the Plugins row i
 
 Adds classic checkers, launched from the Plugins row in Settings.
 
-- Choose Player vs Computer or Player vs Player when it launches, so two people can share the screen
-- Against the computer, pick Beginner, Casual, Intermediate or Hard; you play white
+- Choose 1 Player or 2 Players when it launches, so two people can share the screen
+- With 1 Player, pick Beginner, Casual, Intermediate or Hard; you play white
 - Tap a piece to see its legal moves, then tap a highlighted square to move; or use the cursor buttons and Select
 - Captures are required, you keep jumping while more jumps are available, and a piece that reaches the far row becomes a king
 - Back deselects a piece, or undoes your last move; Power exits
@@ -130,7 +130,7 @@ Adds classic checkers, launched from the Plugins row in Settings.
 
 Adds a full chess game against the device, launched from the Plugins row in Settings. You play white.
 
-- Pick a difficulty when it launches: Beginner, Casual, Intermediate or Hard
+- Choose 1 Player or 2 Players when it launches; 1 Player then asks for a difficulty (Beginner, Casual, Intermediate or Hard), and 2 Players lets two people share the screen (White moves from the bottom, Black from the top)
 - On touch devices, tap one of your pieces to see its legal moves, then tap a highlighted square to move; tapping another piece switches to it and tapping an empty square deselects
 - Without touch, use the cursor buttons and Select
 - Back deselects a piece, or undoes your last move when nothing is selected; Power exits

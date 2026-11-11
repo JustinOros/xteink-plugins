@@ -75,8 +75,8 @@ void ChessActivity::onEnter() {
     engine_.reset(new Engine());
     hist_.reset(new Position[MAX_HIST]);
 
-    screen_ = Screen::MENU;
-    menuIndex_ = 1;
+    screen_ = Screen::MODE;
+    menuIndex_ = 0;
     requestUpdate();
 }
 
@@ -104,8 +104,8 @@ int ChessActivity::squareAt(int x, int y) const {
     return r * 8 + f;
 }
 
-void ChessActivity::startGame(int level) {
-    level_ = level;
+void ChessActivity::startGame(int choice) {
+    if (vsComputer_) level_ = choice;
     startPosition(pos_);
     histCount_ = 0;
     selected_ = -1;
@@ -171,7 +171,7 @@ void ChessActivity::onSquare(int sq) {
         playPlayerMove(selected_, sq);
         return;
     }
-    if (pos_.b[sq] > 0) {
+    if (pos_.b[sq] != 0 && (pos_.b[sq] > 0) == (pos_.side == 0)) {
         selectSquare(sq);
     } else {
         selected_ = -1;
@@ -203,7 +203,7 @@ void ChessActivity::playPlayerMove(int from, int to) {
     memset(legalDest_, 0, sizeof(legalDest_));
 
     checkEnd();
-    thinking_ = result_ == Result::NONE;
+    thinking_ = vsComputer_ && result_ == Result::NONE;
     requestUpdate();
 }
 
@@ -222,11 +222,15 @@ void ChessActivity::runEngine() {
 
 void ChessActivity::undo() {
     int idx = -1;
-    for (int i = histCount_ - 1; i >= 0; i--) {
-        if (hist_[i].side == 0) {
-            idx = i;
-            break;
+    if (vsComputer_) {
+        for (int i = histCount_ - 1; i >= 0; i--) {
+            if (hist_[i].side == 0) {
+                idx = i;
+                break;
+            }
         }
+    } else {
+        idx = histCount_ - 1;
     }
     if (idx < 0) return;
     pos_ = hist_[idx];
@@ -240,35 +244,56 @@ void ChessActivity::undo() {
 }
 
 void ChessActivity::handleMenu() {
-    if (mappedInput.wasPressed(MappedInputManager::Button::Back) || mappedInput.wasBackGesture()) {
-        finish();
+    const int count = screen_ == Screen::MODE ? MODE_COUNT : LEVEL_COUNT;
+
+    if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+        if (screen_ == Screen::LEVEL) {
+            screen_ = Screen::MODE;
+            menuIndex_ = 0;
+            requestUpdate();
+        } else {
+            finish();
+        }
         return;
     }
+
+    const auto choose = [this](int row) {
+        menuIndex_ = row;
+        if (screen_ == Screen::MODE) {
+            vsComputer_ = row == 0;
+            if (vsComputer_) {
+                screen_ = Screen::LEVEL;
+                menuIndex_ = 1;
+                requestUpdate();
+            } else {
+                startGame(0);
+            }
+        } else {
+            startGame(row);
+        }
+    };
 
     int tx = 0;
     int ty = 0;
     if (mappedInput.wasScreenTapped(tx, ty)) {
         if (ty >= MENU_TOP) {
             const int row = (ty - MENU_TOP) / MENU_ROW_H;
-            if (row >= 0 && row < LEVEL_COUNT) {
-                menuIndex_ = row;
-                startGame(row);
-            }
+            if (row >= 0 && row < count) choose(row);
         }
         return;
     }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Up) ||
         mappedInput.wasPressed(MappedInputManager::Button::Left)) {
-        menuIndex_ = (menuIndex_ + LEVEL_COUNT - 1) % LEVEL_COUNT;
+        menuIndex_ = (menuIndex_ + count - 1) % count;
         requestUpdate();
     } else if (mappedInput.wasPressed(MappedInputManager::Button::Down) ||
                mappedInput.wasPressed(MappedInputManager::Button::Right)) {
-        menuIndex_ = (menuIndex_ + 1) % LEVEL_COUNT;
+        menuIndex_ = (menuIndex_ + 1) % count;
         requestUpdate();
     } else if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) ||
                mappedInput.wasPressed(MappedInputManager::Button::Power)) {
-        startGame(menuIndex_);
+        choose(menuIndex_);
     }
 }
 
@@ -280,7 +305,8 @@ void ChessActivity::handleGame() {
     if (result_ != Result::NONE) {
         if (millis() - resultAt_ < 1500) return;
         if (tapped || mappedInput.wasPressed(MappedInputManager::Button::Confirm)) {
-            screen_ = Screen::MENU;
+            screen_ = Screen::MODE;
+            menuIndex_ = 0;
             requestUpdate();
         } else if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
             undo();
@@ -333,7 +359,7 @@ void ChessActivity::loop() {
         return;
     }
 
-    if (screen_ == Screen::MENU) {
+    if (screen_ != Screen::GAME) {
         handleMenu();
         return;
     }
@@ -473,13 +499,17 @@ void ChessActivity::drawBoard() const {
 
 void ChessActivity::drawStatus() const {
     char title[48];
-    snprintf(title, sizeof(title), "Chess  -  %s", LEVELS[level_].name);
+    if (vsComputer_) {
+        snprintf(title, sizeof(title), "Chess  -  %s", LEVELS[level_].name);
+    } else {
+        snprintf(title, sizeof(title), "Chess  -  2 Players");
+    }
     renderer.drawCenteredText(UI_12_FONT_ID, boardTop_ - 64, title, true, EpdFontFamily::BOLD);
 
     const char* status = "Your move";
     switch (result_) {
-        case Result::WHITE_WINS:     status = "Checkmate - you win"; break;
-        case Result::BLACK_WINS:     status = "Checkmate - you lose"; break;
+        case Result::WHITE_WINS:     status = vsComputer_ ? "Checkmate - you win" : "Checkmate - White wins"; break;
+        case Result::BLACK_WINS:     status = vsComputer_ ? "Checkmate - you lose" : "Checkmate - Black wins"; break;
         case Result::DRAW_STALEMATE: status = "Draw by stalemate"; break;
         case Result::DRAW_REPEAT:    status = "Draw by repetition"; break;
         case Result::DRAW_MATERIAL:  status = "Draw - not enough pieces"; break;
@@ -487,8 +517,15 @@ void ChessActivity::drawStatus() const {
         default:
             if (thinking_) {
                 status = "Thinking...";
-            } else if (engine_ && engine_->inCheck(pos_)) {
-                status = "Your move - check";
+            } else if (vsComputer_) {
+                status = engine_ && engine_->inCheck(pos_) ? "Your move - check" : "Your move";
+            } else {
+                const bool check = engine_ && engine_->inCheck(pos_);
+                if (pos_.side == 0) {
+                    status = check ? "White's move - check" : "White's move";
+                } else {
+                    status = check ? "Black's move - check" : "Black's move";
+                }
             }
             break;
     }
@@ -507,10 +544,21 @@ void ChessActivity::drawStatus() const {
 
 void ChessActivity::drawMenu() const {
     renderer.drawCenteredText(UI_12_FONT_ID, 70, "Chess", true, EpdFontFamily::BOLD);
-    renderer.drawCenteredText(UI_10_FONT_ID, 120, "Choose a difficulty");
-    renderer.drawCenteredText(UI_10_FONT_ID, 146, "You play white");
 
-    for (int i = 0; i < LEVEL_COUNT; i++) {
+    int count = 0;
+    if (screen_ == Screen::MODE) {
+        renderer.drawCenteredText(UI_10_FONT_ID, 120, "Choose how many players");
+        count = MODE_COUNT;
+    } else {
+        renderer.drawCenteredText(UI_10_FONT_ID, 120, "Choose a difficulty");
+        renderer.drawCenteredText(UI_10_FONT_ID, 146, "You play white");
+        count = LEVEL_COUNT;
+    }
+
+    static const char* MODE_NAMES[MODE_COUNT] = {"1 Player", "2 Players"};
+    static const char* MODE_HINTS[MODE_COUNT] = {"Play against the device", "Two people share the screen"};
+
+    for (int i = 0; i < count; i++) {
         const int y = MENU_TOP + i * MENU_ROW_H;
         const bool sel = i == menuIndex_;
         const int x = 24;
@@ -521,17 +569,19 @@ void ChessActivity::drawMenu() const {
         } else {
             renderer.drawRoundedRect(x, y, w, h, 2, 10, true);
         }
-        renderer.drawText(UI_12_FONT_ID, x + 20, y + 10, LEVELS[i].name, !sel, EpdFontFamily::BOLD);
-        renderer.drawText(UI_10_FONT_ID, x + 20, y + 42, LEVELS[i].hint, !sel);
+        const char* name = screen_ == Screen::MODE ? MODE_NAMES[i] : LEVELS[i].name;
+        const char* hint = screen_ == Screen::MODE ? MODE_HINTS[i] : LEVELS[i].hint;
+        renderer.drawText(UI_12_FONT_ID, x + 20, y + 10, name, !sel, EpdFontFamily::BOLD);
+        renderer.drawText(UI_10_FONT_ID, x + 20, y + 42, hint, !sel);
     }
 }
 
 void ChessActivity::render(RenderLock&&) {
     renderer.clearScreen();
 
-    if (screen_ == Screen::MENU) {
+    if (screen_ != Screen::GAME) {
         drawMenu();
-        GUI.drawButtonHints(renderer, "Exit", "Start", "Up", "Down");
+        GUI.drawButtonHints(renderer, screen_ == Screen::MODE ? "Exit" : "Back", "Select", "Up", "Down");
     } else {
         drawStatus();
         drawBoard();

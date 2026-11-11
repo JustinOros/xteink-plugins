@@ -501,7 +501,7 @@ void CheckersActivity::drawMenu() const {
 
     int count = 0;
     if (screen_ == Screen::MODE) {
-        renderer.drawCenteredText(UI_10_FONT_ID, 120, "Choose a game mode");
+        renderer.drawCenteredText(UI_10_FONT_ID, 120, "Choose how many players");
         renderer.drawCenteredText(UI_10_FONT_ID, 146, "Captures are required");
         count = MODE_COUNT;
     } else {
@@ -510,7 +510,7 @@ void CheckersActivity::drawMenu() const {
         count = LEVEL_COUNT;
     }
 
-    static const char* MODE_NAMES[MODE_COUNT] = {"Player vs Computer", "Player vs Player"};
+    static const char* MODE_NAMES[MODE_COUNT] = {"1 Player", "2 Players"};
     static const char* MODE_HINTS[MODE_COUNT] = {"Play against the device", "Two people share the screen"};
 
     for (int i = 0; i < count; i++) {

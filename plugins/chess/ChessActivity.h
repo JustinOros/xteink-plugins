@@ -17,10 +17,11 @@ public:
     void render(RenderLock&&) override;
 
 private:
-    enum class Screen { MENU, GAME };
+    enum class Screen { MODE, LEVEL, GAME };
     enum class Result { NONE, WHITE_WINS, BLACK_WINS, DRAW_STALEMATE, DRAW_REPEAT, DRAW_MATERIAL, DRAW_FIFTY };
 
     static constexpr int LEVEL_COUNT = 4;
+    static constexpr int MODE_COUNT = 2;
     static constexpr int MAX_HIST = 400;
     static constexpr int MENU_TOP = 190;
     static constexpr int MENU_ROW_H = 84;
@@ -32,10 +33,11 @@ private:
     int histCount_ = 0;
 
     chess::Position pos_;
-    Screen screen_ = Screen::MENU;
+    Screen screen_ = Screen::MODE;
     Result result_ = Result::NONE;
-    int menuIndex_ = 1;
+    int menuIndex_ = 0;
     int level_ = 1;
+    bool vsComputer_ = true;
 
     int selected_ = -1;
     int cursor_ = 52;
@@ -51,7 +53,7 @@ private:
     int boardLeft_ = 0;
     int boardTop_ = 0;
 
-    void startGame(int level);
+    void startGame(int choice);
     void computeLayout();
     int squareAt(int x, int y) const;
     void onSquare(int sq);
