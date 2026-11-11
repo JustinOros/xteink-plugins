@@ -14,7 +14,7 @@ A plugin system for customizing and extending https://github.com/crosspoint-read
 
 The installer always builds against the latest crosspoint-reader. Plugins are opened from the Plugins row at the bottom of the main Settings screen.
 
-Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Chess, Dino Game, Maze Chase and Snake Game.
+Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase and Snake Game.
 
 Skipped by the installer until they are ported: Dark Mode, Smaller Fonts, Bookerly Font and GitHub Sync. Dark Mode is not needed on the latest crosspoint-reader, which has a built-in Night Mode.
 
@@ -114,7 +114,19 @@ Adds a classic Pong game against a CPU opponent, launched from the Plugins row i
 
 ---
 
-### Chess
+### Checkers Game
+
+Adds classic checkers, launched from the Plugins row in Settings.
+
+- Choose Player vs Computer or Player vs Player when it launches, so two people can share the screen
+- Against the computer, pick Beginner, Casual, Intermediate or Hard; you play white
+- Tap a piece to see its legal moves, then tap a highlighted square to move; or use the cursor buttons and Select
+- Captures are required, you keep jumping while more jumps are available, and a piece that reaches the far row becomes a king
+- Back deselects a piece, or undoes your last move; Power exits
+
+---
+
+### Chess Game
 
 Adds a full chess game against the device, launched from the Plugins row in Settings. You play white.
 
@@ -284,6 +296,10 @@ xteink-plugins/
     ├── pong/
     │   ├── plugin.py
     │   └── PongActivity.h/.cpp
+    ├── checkers/
+    │   ├── plugin.py
+    │   ├── CheckersEngine.h
+    │   └── CheckersActivity.h/.cpp
     ├── chess/
     │   ├── plugin.py
     │   ├── ChessEngine.h

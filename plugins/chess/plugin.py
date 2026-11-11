@@ -24,7 +24,7 @@ def get_manifest(ctx):
         ],
         plugins_tab_entries=[
             PluginsTabEntry(
-                label="Chess",
+                label="Chess Game",
                 kind="action",
                 action_name="Chess",
                 action_value_text="Launch",
