@@ -182,7 +182,9 @@ void DinoActivity::spawnObstacle() {
 bool DinoActivity::anyNonPowerPressed() const {
     int tx = 0;
     int ty = 0;
-    return mappedInput.wasScreenTouchDown(tx, ty) ||
+    return mappedInput.wasScreenTouchPressed(tx, ty) ||
+           mappedInput.wasScreenTapped(tx, ty) ||
+           mappedInput.wasScreenTouchDown(tx, ty) ||
            mappedInput.wasPressed(MappedInputManager::Button::Back) ||
            mappedInput.wasPressed(MappedInputManager::Button::Confirm) ||
            mappedInput.wasPressed(MappedInputManager::Button::Left) ||
