@@ -513,53 +513,49 @@ def auto_detect_environment(yes_all):
 def prompt_for_upload_port():
     print("\n[3/3] Select serial port for flashing...")
 
-    max_retries = 3
-
-    for attempt in range(1, max_retries + 1):
-        print(f"\n  Attempt {attempt}/{max_retries}")
-        print("  Ensure your xteink device is connected via USB and awake.")
-        input("  Press Enter when ready... ")
+    while True:
+        print("\n  Ensure your xteink device is connected via USB and awake.")
+        answer = input("  Press Enter when ready (Q to Quit): ").strip().lower()
+        if answer == "q":
+            sys.exit(1)
 
         ports = detect_serial_ports()
 
-        if ports:
-            cu_ports = [(d, desc) for d, desc in ports if d.startswith("/dev/cu.")]
-            recommended = cu_ports[0][0] if cu_ports else ports[0][0]
-
-            print(f"\n  Found {len(ports)} serial port(s):")
-            for i, (device, desc) in enumerate(ports, 1):
-                tag = "  ← recommended" if device == recommended else ""
-                print(f"    {i}. {device}  —  {desc}{tag}")
-
-            choice = input(f"\n  Press ENTER to use {recommended}, or enter 1-{len(ports)}: ").strip()
-
-            if not choice:
-                print(f"  Selected: {recommended}")
-                return recommended
-
-            if choice.isdigit():
-                idx = int(choice) - 1
-                if 0 <= idx < len(ports):
-                    print(f"  Selected: {ports[idx][0]}")
-                    return ports[idx][0]
-
-            print("  Invalid choice, please try again.")
-
-        else:
+        if not ports:
             print("  No USB serial ports detected.")
-            if attempt < max_retries:
-                print("  Make sure the device is connected, powered on, and awake.")
+            print("  Make sure the device is connected, powered on, and awake.")
+            while True:
+                answer = input("  R to Retry, Q to Quit: ").strip().lower()
+                if answer == "q":
+                    sys.exit(1)
+                if answer in ("r", ""):
+                    break
+            continue
 
-    print("\n  Could not auto-detect a port.")
-    print("  Common names:  macOS: /dev/cu.usb*   Linux: /dev/ttyUSB*   Windows: COMx")
+        cu_ports = [(d, desc) for d, desc in ports if d.startswith("/dev/cu.")]
+        recommended = cu_ports[0][0] if cu_ports else ports[0][0]
 
-    while True:
-        port = input("\n  Enter port manually (or 'quit' to exit): ").strip()
-        if port.lower() == "quit":
+        print(f"\n  Found {len(ports)} serial port(s):")
+        for i, (device, desc) in enumerate(ports, 1):
+            tag = "  ← recommended" if device == recommended else ""
+            print(f"    {i}. {device}  —  {desc}{tag}")
+
+        choice = input(f"\n  Press ENTER to use {recommended}, enter 1-{len(ports)}, or Q to Quit: ").strip()
+
+        if choice.lower() == "q":
             sys.exit(1)
-        if port:
-            return port
-        print("  Please enter a valid port name.")
+
+        if not choice:
+            print(f"  Selected: {recommended}")
+            return recommended
+
+        if choice.isdigit():
+            idx = int(choice) - 1
+            if 0 <= idx < len(ports):
+                print(f"  Selected: {ports[idx][0]}")
+                return ports[idx][0]
+
+        print("  Invalid choice, please try again.")
 
 
 def prompt_for_baud_rate(override: str | None, yes_all: bool = False):
