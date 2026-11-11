@@ -119,7 +119,8 @@ Adds a classic Pong game against a CPU opponent, launched from the Plugins row i
 Adds a full chess game against the device, launched from the Plugins row in Settings. You play white.
 
 - Pick a difficulty when it launches: Beginner, Casual, Intermediate or Hard
-- Tap a piece, then tap a highlighted square to move, or use the cursor buttons and Select
+- On touch devices, tap one of your pieces to see its legal moves, then tap a highlighted square to move; tapping another piece switches to it and tapping an empty square deselects
+- Without touch, use the cursor buttons and Select
 - Back deselects a piece, or undoes your last move when nothing is selected; Power exits
 - Supports castling, en passant, promotion (always to a queen), check, checkmate, stalemate and draws by repetition, the 50 move rule and lack of material
 - Higher levels think longer, so a move on Hard can take several seconds
