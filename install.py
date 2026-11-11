@@ -26,6 +26,7 @@ ENVIRONMENTS = {
 }
 
 PIO_MAX_PYTHON = (3, 13)
+USER_QUIT_EXIT_CODE = 3
 USE_PIO_BINARY = os.name != "nt" and shutil.which("pio") is not None
 PIO_CMD = "pio" if USE_PIO_BINARY else f'"{sys.executable}" -m platformio'
 
@@ -559,17 +560,30 @@ def build_and_flash(environment: str, baud_rate: str):
     print(f"\nBuilding firmware with PlatformIO (environment: {environment})...")
     run(f"{PIO_CMD} run --environment {environment}", cwd=REPO_DIR)
 
-    port = prompt_for_upload_port()
-
     local_ini = os.path.join(REPO_DIR, "platformio.local.ini")
     with open(local_ini, "w") as f:
         f.write(f"[env:{environment}]\nupload_speed = {baud_rate}\n")
 
-    print(f"\n  Flashing to {port} at {baud_rate} baud...")
-    run(
-        f"{PIO_CMD} run --target upload --environment {environment} --upload-port {port}",
-        cwd=REPO_DIR,
-    )
+    while True:
+        port = prompt_for_upload_port()
+        print(f"\n  Flashing to {port} at {baud_rate} baud...")
+        result = run(
+            f"{PIO_CMD} run --target upload --environment {environment} --upload-port {port}",
+            cwd=REPO_DIR,
+            check=False,
+        )
+        if result.returncode == 0:
+            return
+
+        print("\n  Flashing failed. The firmware is already built, so you only need to retry the upload.")
+        print("  Try this before retrying:")
+        print("    1. Close anything else using the serial port (for example a serial monitor).")
+        print("    2. Unplug the device, plug it back in and turn it on.")
+        print("    3. Use a data-capable USB cable plugged straight into the computer.")
+        print("    4. If it still fails, put the device in flashing mode (hold BOOT, tap RESET, release BOOT).")
+        answer = input("\n  Press ENTER to retry flashing, or type q to quit: ").strip().lower()
+        if answer in ("q", "quit"):
+            sys.exit(USER_QUIT_EXIT_CODE)
 
 
 def parse_args():

@@ -29,8 +29,10 @@ function Invoke-WithRetry($label, [scriptblock]$action) {
         try {
             & $action
             if ($LASTEXITCODE -eq 0) { return }
+            if ($LASTEXITCODE -eq 3) { throw "Stopped by you." }
         } catch {
             Write-Host $_.Exception.Message -ForegroundColor Red
+            if ($_.Exception.Message -eq "Stopped by you.") { throw }
         }
         if ($attempt -lt $maxAttempts) {
             Write-Host "$label failed (attempt $attempt of $maxAttempts). Retrying in 10 seconds..." -ForegroundColor Yellow
