@@ -4,6 +4,7 @@ import os
 import sys
 import shutil
 import subprocess
+import time
 import glob
 import argparse
 import datetime
@@ -449,29 +450,45 @@ def pick_s3_environment(port_description, yes_all):
     return "x4c" if choice == "2" else "x4pro"
 
 
+def ask_device_environment():
+    print("\n  Which device are you flashing?")
+    print("    1. Xteink X3 or X4 (ESP32-C3)")
+    print("    2. Xteink X4 Pro (ESP32-S3, touchscreen and frontlight)")
+    print("    3. Xteink X4 Classic (ESP32-S3, buttons only)")
+    while True:
+        choice = input("\n  Enter 1-3: ").strip()
+        if choice == "1":
+            return AUTO_ENV_C3
+        if choice == "2":
+            return "x4pro"
+        if choice == "3":
+            return "x4c"
+        print("  Please enter 1, 2 or 3.")
+
+
 def auto_detect_environment(yes_all):
     print("Detecting connected device...")
     ports = detect_serial_ports()
-    if not ports:
-        print(f"  No device detected, using the {AUTO_ENV_C3} (X3/X4) build.")
-        print("  If you have an X4 Pro, connect it and re-run, or use: -e x4pro")
-        return AUTO_ENV_C3
 
-    cu_ports = [(d, desc) for d, desc in ports if d.startswith("/dev/cu.")]
-    ordered = cu_ports + [p for p in ports if p not in cu_ports]
-    for device, description in ordered:
-        chip = esptool_chip_name(device)
-        if chip == "ESP32-C3":
-            print(f"  Found {chip} on {device}: Xteink X3/X4")
-            return AUTO_ENV_C3
-        if chip == "ESP32-S3":
-            env = pick_s3_environment(description, yes_all)
-            print(f"  Found {chip} on {device}: building for {env}")
-            return env
+    if ports:
+        cu_ports = [(d, desc) for d, desc in ports if d.startswith("/dev/cu.")]
+        ordered = cu_ports + [p for p in ports if p not in cu_ports]
+        for attempt in range(2):
+            for device, description in ordered:
+                chip = esptool_chip_name(device)
+                if chip == "ESP32-C3":
+                    print(f"  Found {chip} on {device}: Xteink X3/X4")
+                    return AUTO_ENV_C3
+                if chip == "ESP32-S3":
+                    env = pick_s3_environment(description, yes_all)
+                    print(f"  Found {chip} on {device}: building for {env}")
+                    return env
+            if attempt == 0:
+                print("  No answer from the device, trying once more...")
+                time.sleep(2)
 
-    print(f"  Could not identify the chip, using the {AUTO_ENV_C3} (X3/X4) build.")
-    print("  If you have an X4 Pro, use: -e x4pro")
-    return AUTO_ENV_C3
+    print("  Could not identify the connected device automatically.")
+    return ask_device_environment()
 
 
 def prompt_for_upload_port():

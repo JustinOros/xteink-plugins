@@ -14,7 +14,7 @@ A plugin system for customizing and extending https://github.com/crosspoint-read
 
 The installer always builds against the latest crosspoint-reader. Plugins are opened from the Plugins row at the bottom of the main Settings screen.
 
-Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Dino Game and Snake Game.
+Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Dino Game, Maze Chase and Snake Game.
 
 Skipped by the installer until they are ported: Dark Mode, Smaller Fonts, Bookerly Font and GitHub Sync. Dark Mode is not needed on the latest crosspoint-reader, which has a built-in Night Mode.
 
@@ -123,6 +123,17 @@ Adds the classic offline dinosaur runner as a full-screen game, launched from th
 - On Game Over, any button restarts and Power exits
 - A bird flies across the top of the screen for atmosphere - it's decorative only, no need to dodge it
 - Score is shown top-right and resets each session
+
+---
+
+### Maze Chase
+
+Adds an original maze game where you clear every pellet while three chasers hunt you, launched from the Plugins row in Settings.
+
+- A new random maze is built each level, and speed increases with each level
+- Swipe, tap the side you want to go, or use the 4 front buttons (Left / Right / Up / Down)
+- Eat a large pellet in a corner to turn the chasers hollow and eat them for bonus points
+- You have 3 lives; any front button or tap restarts after game over and Power exits
 
 ---
 
@@ -263,6 +274,9 @@ xteink-plugins/
     ├── dinogame/
     │   ├── plugin.py
     │   └── DinoActivity.h/.cpp
+    ├── mazechase/
+    │   ├── plugin.py
+    │   └── MazeChaseActivity.h/.cpp
     ├── snakegame/
     │   ├── plugin.py
     │   └── SnakeActivity.h/.cpp
