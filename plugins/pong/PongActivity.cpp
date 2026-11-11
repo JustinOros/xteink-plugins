@@ -118,6 +118,7 @@ void PongActivity::loop() {
     int touchX = 0;
     int touchY = 0;
     const bool touched = mappedInput.wasScreenTouchDown(touchX, touchY);
+    const bool touching = touched || mappedInput.isScreenTouchHeld(touchX, touchY);
 
     if (gameOver_) {
         if (touched) {
@@ -154,11 +155,13 @@ void PongActivity::loop() {
                    mappedInput.wasPressed(MappedInputManager::Button::Down) ||
                    mappedInput.wasPressed(MappedInputManager::Button::Confirm);
 
-    if (touched) {
-        if (touchX < screenW_ / 2) {
-            goLeft = true;
-        } else {
-            goRight = true;
+    if (touching) {
+        float target = static_cast<float>(touchX) - PADDLE_W / 2.0f;
+        if (target < MARGIN) target = MARGIN;
+        if (target + PADDLE_W > screenW_ - MARGIN) target = static_cast<float>(screenW_ - MARGIN - PADDLE_W);
+        if (target != playerX_) {
+            playerX_ = target;
+            moved = true;
         }
     }
 

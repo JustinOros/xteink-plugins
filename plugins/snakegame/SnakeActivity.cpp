@@ -85,6 +85,29 @@ void SnakeActivity::placeFood() {
 void SnakeActivity::handleDirectionInput() {
     const int btn = mappedInput.getPressedFrontButton();
 
+    int tapX = 0;
+    int tapY = 0;
+    if (mappedInput.wasScreenTapped(tapX, tapY)) {
+        const int headX = fieldLeft_ + snakeX_[headIdx_] * BLOCK + BLOCK / 2;
+        const int headY = fieldTop_ + snakeY_[headIdx_] * BLOCK + BLOCK / 2;
+        const int dx = tapX - headX;
+        const int dy = tapY - headY;
+        const Dir horizontal = dx >= 0 ? Dir::Right : Dir::Left;
+        const Dir vertical   = dy >= 0 ? Dir::Down : Dir::Up;
+        const bool horizontalFirst = (dx < 0 ? -dx : dx) >= (dy < 0 ? -dy : dy);
+        const Dir first  = horizontalFirst ? horizontal : vertical;
+        const Dir second = horizontalFirst ? vertical : horizontal;
+        const auto reverses = [this](Dir d) {
+            return (d == Dir::Left && dir_ == Dir::Right) || (d == Dir::Right && dir_ == Dir::Left) ||
+                   (d == Dir::Up && dir_ == Dir::Down) || (d == Dir::Down && dir_ == Dir::Up);
+        };
+        if (!reverses(first)) {
+            pendingDir_ = first;
+        } else if (!reverses(second)) {
+            pendingDir_ = second;
+        }
+    }
+
     switch (mappedInput.wasSwipe()) {
         case MappedInputManager::SwipeDir::Left:
             if (dir_ != Dir::Right) pendingDir_ = Dir::Left;
