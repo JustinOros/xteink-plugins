@@ -14,7 +14,7 @@ A plugin system for customizing and extending https://github.com/crosspoint-read
 
 The installer always builds against the latest crosspoint-reader. Plugins are opened from the Plugins row at the bottom of the main Settings screen.
 
-Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Dino Game, Maze Chase and Snake Game.
+Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Chess, Dino Game, Maze Chase and Snake Game.
 
 Skipped by the installer until they are ported: Dark Mode, Smaller Fonts, Bookerly Font and GitHub Sync. Dark Mode is not needed on the latest crosspoint-reader, which has a built-in Night Mode.
 
@@ -111,6 +111,18 @@ Adds a classic Pong game against a CPU opponent, launched from the Plugins row i
 - CPU controls the top paddle and tracks the ball
 - First to 7 points wins; any button exits the win/lose screen
 - Power always exits the game
+
+---
+
+### Chess
+
+Adds a full chess game against the device, launched from the Plugins row in Settings. You play white.
+
+- Pick a difficulty when it launches: Beginner, Casual, Intermediate or Hard
+- Tap a piece, then tap a highlighted square to move, or use the cursor buttons and Select
+- Back deselects a piece, or undoes your last move when nothing is selected; Power exits
+- Supports castling, en passant, promotion (always to a queen), check, checkmate, stalemate and draws by repetition, the 50 move rule and lack of material
+- Higher levels think longer, so a move on Hard can take several seconds
 
 ---
 
@@ -271,6 +283,10 @@ xteink-plugins/
     ├── pong/
     │   ├── plugin.py
     │   └── PongActivity.h/.cpp
+    ├── chess/
+    │   ├── plugin.py
+    │   ├── ChessEngine.h
+    │   └── ChessActivity.h/.cpp
     ├── dinogame/
     │   ├── plugin.py
     │   └── DinoActivity.h/.cpp
