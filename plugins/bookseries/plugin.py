@@ -26,7 +26,7 @@ def get_manifest(ctx):
                 label="Book Series",
                 kind="action",
                 action_name="BookSeries",
-                action_value_text="Installed",
+                action_value_text="Open",
                 activity_launch_expr="std::make_unique<BookSeriesActivity>(renderer, mappedInput)",
             ),
         ],
