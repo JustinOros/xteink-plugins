@@ -199,12 +199,42 @@ void LockscreenActivity::render(RenderLock&&) {
     renderer.displayBuffer();
 }
 
+bool LockscreenActivity::keyAt(int x, int y, int& row, int& col) const {
+    constexpr int SIDE = 30;
+    const auto& metrics = UITheme::getInstance().getMetrics();
+    const int usableH = renderer.getScreenHeight() - metrics.buttonHintsHeight;
+    const int top = usableH * 33 / 100;
+    const int bottom = usableH - 20;
+    const int colW = (renderer.getScreenWidth() - 2 * SIDE) / COLS;
+    const int rowH = (bottom - top) / ROWS;
+    if (colW <= 0 || rowH <= 0 || x < SIDE || y < top) return false;
+    const int c = (x - SIDE) / colW;
+    const int r = (y - top) / rowH;
+    if (c >= COLS || r >= ROWS) return false;
+    row = r;
+    col = c;
+    return true;
+}
+
 void LockscreenActivity::loop() {
     if (purpose_ == Purpose::UNLOCK) {
         if (millis() - enterTime_ > TIMEOUT_MS) {
             goToSleep();
             return;
         }
+    }
+
+    int touchX = 0;
+    int touchY = 0;
+    int touchRow = 0;
+    int touchCol = 0;
+    if (mappedInput.wasScreenTapped(touchX, touchY)) {
+        if (keyAt(touchX, touchY, touchRow, touchCol) && KEYS[touchRow][touchCol][0] != '\0') {
+            cursorRow_ = touchRow;
+            cursorCol_ = touchCol;
+            pressCurrentKey();
+        }
+        return;
     }
 
     if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {

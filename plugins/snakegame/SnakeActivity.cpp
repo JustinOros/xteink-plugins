@@ -85,6 +85,23 @@ void SnakeActivity::placeFood() {
 void SnakeActivity::handleDirectionInput() {
     const int btn = mappedInput.getPressedFrontButton();
 
+    switch (mappedInput.wasSwipe()) {
+        case MappedInputManager::SwipeDir::Left:
+            if (dir_ != Dir::Right) pendingDir_ = Dir::Left;
+            break;
+        case MappedInputManager::SwipeDir::Right:
+            if (dir_ != Dir::Left) pendingDir_ = Dir::Right;
+            break;
+        case MappedInputManager::SwipeDir::Up:
+            if (dir_ != Dir::Down) pendingDir_ = Dir::Up;
+            break;
+        case MappedInputManager::SwipeDir::Down:
+            if (dir_ != Dir::Up) pendingDir_ = Dir::Down;
+            break;
+        default:
+            break;
+    }
+
     switch (btn) {
         case HalGPIO::BTN_BACK:
             if (dir_ != Dir::Right) pendingDir_ = Dir::Left;
@@ -160,7 +177,7 @@ void SnakeActivity::updateGame() {
 }
 
 void SnakeActivity::loop() {
-    if (mappedInput.wasPressed(MappedInputManager::Button::Power)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Power) || mappedInput.wasBackGesture()) {
         while (mappedInput.isPressed(MappedInputManager::Button::Power)) {
             mappedInput.update();
             delay(10);
@@ -170,8 +187,10 @@ void SnakeActivity::loop() {
     }
 
     if (gameOver_) {
+        int tx = 0;
+        int ty = 0;
         if (millis() - gameOverAt_ >= GAME_OVER_LOCKOUT_MS &&
-            mappedInput.getPressedFrontButton() != -1) {
+            (mappedInput.getPressedFrontButton() != -1 || mappedInput.wasScreenTapped(tx, ty))) {
             resetGame();
             renderPending_ = true;
             requestUpdate();

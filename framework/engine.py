@@ -360,9 +360,28 @@ void XteinkPluginsActivity::activate(int index) {{
 }}
 
 void XteinkPluginsActivity::loop() {{
-  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {{
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back) || mappedInput.wasBackGesture()) {{
     finish();
     return;
+  }}
+  {{
+    const auto& touchMetrics = UITheme::getInstance().getMetrics();
+    const int touchTop = touchMetrics.topPadding + touchMetrics.headerHeight + touchMetrics.verticalSpacing;
+    const int touchHeight =
+        renderer.getScreenHeight() - touchTop - touchMetrics.buttonHintsHeight - touchMetrics.verticalSpacing * 2;
+    int touched = 0;
+    const auto touch = pluginui::listTouch(mappedInput, renderer, Rect{{0, touchTop, renderer.getScreenWidth(), touchHeight}},
+                                           ROW_COUNT, selected, touched);
+    if (touch == MappedInputManager::RowTouch::Down) {{
+      selected = touched;
+      requestUpdate();
+      return;
+    }}
+    if (touch == MappedInputManager::RowTouch::Tap) {{
+      selected = touched;
+      activate(selected);
+      return;
+    }}
   }}
   if (mappedInput.wasPressed(MappedInputManager::Button::Confirm) ||
       mappedInput.wasPressed(MappedInputManager::Button::Power)) {{

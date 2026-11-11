@@ -61,6 +61,7 @@ class LockscreenActivity final : public Activity {
     void pressCurrentKey();
     void submitPin();
     void moveCursor(int dRow, int dCol);
+    bool keyAt(int x, int y, int& row, int& col) const;
     void renderDots(int centerX, int centerY) const;
     void renderBackspaceIcon(int cx, int cy, bool dark) const;
     void renderKeypad(int top, int bottom) const;

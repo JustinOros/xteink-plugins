@@ -115,7 +115,15 @@ void PongActivity::updateGame() {
 }
 
 void PongActivity::loop() {
+    int touchX = 0;
+    int touchY = 0;
+    const bool touched = mappedInput.wasScreenTouchDown(touchX, touchY);
+
     if (gameOver_) {
+        if (touched) {
+            finish();
+            return;
+        }
         if (mappedInput.wasPressed(MappedInputManager::Button::Back) ||
             mappedInput.wasPressed(MappedInputManager::Button::Confirm) ||
             mappedInput.wasPressed(MappedInputManager::Button::Left) ||
@@ -128,7 +136,7 @@ void PongActivity::loop() {
         return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Power)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Power) || mappedInput.wasBackGesture()) {
         while (mappedInput.isPressed(MappedInputManager::Button::Power)) {
             mappedInput.update();
             delay(10);
@@ -145,6 +153,14 @@ void PongActivity::loop() {
     bool goRight = mappedInput.wasPressed(MappedInputManager::Button::Right) ||
                    mappedInput.wasPressed(MappedInputManager::Button::Down) ||
                    mappedInput.wasPressed(MappedInputManager::Button::Confirm);
+
+    if (touched) {
+        if (touchX < screenW_ / 2) {
+            goLeft = true;
+        } else {
+            goRight = true;
+        }
+    }
 
     if (goLeft) {
         playerX_ -= PADDLE_W;

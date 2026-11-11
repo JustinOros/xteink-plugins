@@ -18,8 +18,10 @@
 namespace {
 bool anyButtonPressedImpl(const MappedInputManager& in) {
   using B = MappedInputManager::Button;
+  int tx = 0;
+  int ty = 0;
   return in.wasPressed(B::Back) || in.wasPressed(B::Confirm) || in.wasPressed(B::Left) || in.wasPressed(B::Right) ||
-         in.wasPressed(B::Up) || in.wasPressed(B::Down) || in.wasPressed(B::Power);
+         in.wasPressed(B::Up) || in.wasPressed(B::Down) || in.wasPressed(B::Power) || in.wasScreenTouchDown(tx, ty);
 }
 constexpr unsigned long IDLE_TIMEOUT_MS = 5UL * 60UL * 1000UL;
 constexpr int STATUS_HEIGHT = 28;
@@ -402,6 +404,14 @@ void AudiobookshelfActivity::runPending() {
   lastInput = millis();
 }
 
+Rect AudiobookshelfActivity::listRect() const {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int contentHeight = renderer.getScreenHeight() - contentTop - metrics.buttonHintsHeight -
+                            metrics.verticalSpacing * 2 - STATUS_HEIGHT;
+  return Rect{0, contentTop, renderer.getScreenWidth(), contentHeight};
+}
+
 void AudiobookshelfActivity::loop() {
   if (pending != Pending::NONE) {
     requestUpdateAndWait();
@@ -418,7 +428,7 @@ void AudiobookshelfActivity::loop() {
 
   if (state != State::FORM && state != State::BROWSE) return;
 
-  if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+  if (mappedInput.wasPressed(MappedInputManager::Button::Back) || mappedInput.wasBackGesture()) {
     handleBack();
     return;
   }
@@ -426,6 +436,19 @@ void AudiobookshelfActivity::loop() {
       mappedInput.wasPressed(MappedInputManager::Button::Power)) {
     handleConfirm();
     return;
+  }
+  {
+    int touched = 0;
+    const auto touch = pluginui::listTouch(mappedInput, renderer, listRect(), rowCount(), selected, touched);
+    if (touch != MappedInputManager::RowTouch::None && selectable(touched)) {
+      selected = touched;
+      if (touch == MappedInputManager::RowTouch::Tap) {
+        handleConfirm();
+      } else {
+        requestUpdate();
+      }
+      return;
+    }
   }
   buttonNavigator.onNext([this] {
     moveSelection(1);

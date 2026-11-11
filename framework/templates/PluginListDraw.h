@@ -2,6 +2,8 @@
 
 #include <GfxRenderer.h>
 
+#include "MappedInputManager.h"
+
 #include <functional>
 #include <string>
 
@@ -18,6 +20,19 @@ inline int firstVisibleRow(int count, int selected, int visible) {
   int top = (selected / visible) * visible;
   if (top + visible > count) top = count - visible;
   return top < 0 ? 0 : top;
+}
+
+inline MappedInputManager::RowTouch listTouch(const MappedInputManager& input, GfxRenderer& renderer, const Rect& rect,
+                                              int count, int selected, int& index) {
+  const int rowHeight = renderer.getLineHeight(UI_10_FONT_ID) + 14;
+  const int visible = rect.height / rowHeight;
+  if (visible <= 0 || count <= 0) return MappedInputManager::RowTouch::None;
+  const int top = firstVisibleRow(count, selected, visible);
+  const int shown = (count - top) < visible ? (count - top) : visible;
+  int row = 0;
+  const auto result = input.rowTouch(row, rect.y, rowHeight, shown, rect.x, rect.x + rect.width, rowHeight - 2);
+  if (result != MappedInputManager::RowTouch::None) index = top + row;
+  return result;
 }
 
 inline void drawList(GfxRenderer& renderer, const Rect& rect, int count, int selected, const RowText& title,

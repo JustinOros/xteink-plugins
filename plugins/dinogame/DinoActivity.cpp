@@ -180,7 +180,10 @@ void DinoActivity::spawnObstacle() {
 }
 
 bool DinoActivity::anyNonPowerPressed() const {
-    return mappedInput.wasPressed(MappedInputManager::Button::Back) ||
+    int tx = 0;
+    int ty = 0;
+    return mappedInput.wasScreenTouchDown(tx, ty) ||
+           mappedInput.wasPressed(MappedInputManager::Button::Back) ||
            mappedInput.wasPressed(MappedInputManager::Button::Confirm) ||
            mappedInput.wasPressed(MappedInputManager::Button::Left) ||
            mappedInput.wasPressed(MappedInputManager::Button::Right) ||
@@ -259,7 +262,7 @@ void DinoActivity::updateGame() {
 
 void DinoActivity::loop() {
     if (gameOver_) {
-        if (mappedInput.wasPressed(MappedInputManager::Button::Power)) {
+        if (mappedInput.wasPressed(MappedInputManager::Button::Power) || mappedInput.wasBackGesture()) {
             while (mappedInput.isPressed(MappedInputManager::Button::Power)) {
                 mappedInput.update();
                 delay(10);
@@ -275,7 +278,7 @@ void DinoActivity::loop() {
         return;
     }
 
-    if (mappedInput.wasPressed(MappedInputManager::Button::Power)) {
+    if (mappedInput.wasPressed(MappedInputManager::Button::Power) || mappedInput.wasBackGesture()) {
         while (mappedInput.isPressed(MappedInputManager::Button::Power)) {
             mappedInput.update();
             delay(10);
