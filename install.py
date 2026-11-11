@@ -264,22 +264,41 @@ def backup_device(yes_all: bool = False):
     print()
 
 
-def clone_repo(force: bool = True):
+def refresh_repo():
+    if not os.path.isdir(os.path.join(REPO_DIR, ".git")):
+        return False
+    print("  Existing repo found, resetting it and keeping the build cache...")
+    clean_steps = [
+        "git reset --hard HEAD",
+        "git clean -fd",
+        'git submodule foreach --recursive "git reset --hard && git clean -fd"',
+    ]
+    for step in clean_steps:
+        if run(step, cwd=REPO_DIR, check=False).returncode != 0:
+            return False
+
+    fetched = run("git fetch origin HEAD", cwd=REPO_DIR, check=False).returncode == 0
+    if fetched:
+        local_sha = get_local_head_sha()
+        if run("git reset --hard FETCH_HEAD", cwd=REPO_DIR, check=False).returncode != 0:
+            return False
+        if run("git submodule update --init --recursive", cwd=REPO_DIR, check=False).returncode != 0:
+            return False
+        new_sha = get_local_head_sha()
+        if local_sha and new_sha and local_sha != new_sha:
+            print(f"  Updated CrossPoint {local_sha[:8]} to {new_sha[:8]}.")
+        else:
+            print(f"  Already up to date ({(new_sha or 'unknown')[:8]}).")
+    else:
+        print("  Could not reach the remote, using the existing copy.")
+    return True
+
+
+def clone_repo(fresh: bool = False):
     print("[1/3] Preparing CrossPoint repository...")
 
-    if not force and os.path.exists(REPO_DIR):
-        print("  Existing repo found, checking remote for updates...")
-        remote_sha = get_remote_head_sha()
-        local_sha  = get_local_head_sha()
-
-        if remote_sha and local_sha and remote_sha == local_sha:
-            print(f"  Already up to date ({local_sha[:8]}), skipping clone.")
-            return
-        elif remote_sha:
-            print(f"  Remote has changed ({remote_sha[:8]} vs local {(local_sha or 'unknown')[:8]}), re-cloning...")
-        else:
-            print("  Could not reach remote, re-using existing repo.")
-            return
+    if not fresh and refresh_repo():
+        return
 
     if os.path.exists(REPO_DIR):
         print(f"  Removing existing '{REPO_DIR}'...")
@@ -633,10 +652,10 @@ def parse_args():
         ),
     )
     parser.add_argument(
-        "--no-reclone",
+        "--fresh",
         action="store_true",
-        dest="no_reclone",
-        help="Skip re-cloning if CrossPoint repo already exists and matches remote",
+        dest="fresh",
+        help="Delete the CrossPoint folder and clone it again, which also clears the build cache",
     )
     return parser.parse_args()
 
@@ -677,7 +696,7 @@ def main():
     print()
     restore_from_backup(yes_all=args.yes)
     backup_device(yes_all=args.yes)
-    clone_repo(force=not args.no_reclone)
+    clone_repo(fresh=args.fresh)
     clear_plugin_caches()
     chosen_plugins = select_plugins(yes_all=args.yes)
     apply_plugins(chosen_plugins, yes_all=args.yes)
