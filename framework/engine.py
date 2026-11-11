@@ -220,7 +220,7 @@ def _cpp_str(text):
 
 
 def generate_plugins_activity(repo_dir, selected: List[SelectedPlugin]):
-    menu_order = ["audiobookshelf", "hardcover", "lockscreen", "checkers", "chess", "dinogame", "mazechase", "minesweeper", "pong", "snakegame", "sudoku"]
+    menu_order = ["audiobookshelf", "hardcover", "lockscreen", "checkers", "chess", "dinogame", "mazechase", "minesweeper", "pong", "snakegame", "solitaire", "sudoku"]
     ordered = sorted(selected, key=lambda sp: (menu_order.index(sp.name) if sp.name in menu_order else len(menu_order), sp.name))
     entries = [e for sp in ordered for e in sp.manifest.plugins_tab_entries
                if e.kind == "action" or (e.kind in ("enum", "toggle") and e.show_on_device)]

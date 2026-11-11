@@ -14,7 +14,7 @@ A plugin system for customizing and extending https://github.com/crosspoint-read
 
 The installer always builds against the latest crosspoint-reader. Plugins are opened from the Plugins row at the bottom of the main Settings screen.
 
-Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase, Minesweeper Game, Snake Game and Sudoku Game.
+Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase, Minesweeper Game, Snake Game, Solitaire Game and Sudoku Game.
 
 Skipped by the installer until they are ported: Dark Mode, Smaller Fonts, Bookerly Font and GitHub Sync. Dark Mode is not needed on the latest crosspoint-reader, which has a built-in Night Mode.
 
@@ -199,6 +199,21 @@ Adds Sudoku, launched from the Plugins row in Settings.
 
 ---
 
+### Solitaire Game
+
+Adds Klondike Solitaire, launched from the Plugins row in Settings.
+
+- Choose Draw One or Draw Three when it launches
+- Tap the deck to draw; when it runs out, tap it again to turn the pile back over
+- Tap a face-up card to pick it up (and every card on top of it), then tap where it should go: a column or a foundation pile at the top right
+- Tap a picked-up card a second time to send it to the best spot automatically
+- The bar at the bottom has Undo, Auto (moves every card it can to the foundations) and New (tap twice to confirm)
+- Red cards are shown on a gray background and black cards on white
+- With buttons: Left / Right / Up / Down move the cursor, Select picks up or places, Back cancels or undoes; Power exits
+- Moving all 52 cards to the foundations wins and shows your time and moves
+
+---
+
 ### Audiobookshelf
 
 Browse and download ebooks from your Audiobookshelf server, launched from the Plugins row in Settings.
@@ -340,6 +355,10 @@ xteink-plugins/
     │   ├── plugin.py
     │   ├── MinesweeperBoard.h
     │   └── MinesweeperActivity.h/.cpp
+    ├── solitaire/
+    │   ├── plugin.py
+    │   ├── SolitaireGame.h
+    │   └── SolitaireActivity.h/.cpp
     ├── sudoku/
     │   ├── plugin.py
     │   ├── SudokuPuzzle.h
