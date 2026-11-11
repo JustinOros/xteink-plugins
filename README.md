@@ -14,7 +14,7 @@ A plugin system for customizing and extending https://github.com/crosspoint-read
 
 The installer always builds against the latest crosspoint-reader. Plugins are opened from the Plugins row at the bottom of the main Settings screen.
 
-Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase, Minesweeper Game and Snake Game.
+Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase, Minesweeper Game, Snake Game and Sudoku Game.
 
 Skipped by the installer until they are ported: Dark Mode, Smaller Fonts, Bookerly Font and GitHub Sync. Dark Mode is not needed on the latest crosspoint-reader, which has a built-in Night Mode.
 
@@ -186,6 +186,19 @@ Adds a classic Snake game sized to your device's screen, launched from the Plugi
 
 ---
 
+### Sudoku Game
+
+Adds Sudoku, launched from the Plugins row in Settings.
+
+- Pick Easy (40 numbers to start), Medium (32) or Hard (25); every puzzle is made on the device and has exactly one solution
+- Tap a square, then tap a number under the board to fill it; tap the same number again to clear it
+- Notes lets you pencil in small candidate numbers; Erase, Undo and Hint are on the bar below the pad
+- A number that repeats in its row, column or box is shown on a black square, but the game never reveals the answer unless you ask for a Hint
+- With buttons: Left / Right / Up / Down move the cursor, Select steps through the numbers and Back erases; Power exits
+- Solving it shows your time and how many hints you used
+
+---
+
 ### Audiobookshelf
 
 Browse and download ebooks from your Audiobookshelf server, launched from the Plugins row in Settings.
@@ -327,6 +340,10 @@ xteink-plugins/
     │   ├── plugin.py
     │   ├── MinesweeperBoard.h
     │   └── MinesweeperActivity.h/.cpp
+    ├── sudoku/
+    │   ├── plugin.py
+    │   ├── SudokuPuzzle.h
+    │   └── SudokuActivity.h/.cpp
     ├── snakegame/
     │   ├── plugin.py
     │   └── SnakeActivity.h/.cpp
