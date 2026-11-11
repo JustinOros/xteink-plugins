@@ -14,7 +14,7 @@ A plugin system for customizing and extending https://github.com/crosspoint-read
 
 The installer always builds against the latest crosspoint-reader. Plugins are opened from the Plugins row at the bottom of the main Settings screen.
 
-Working on the latest crosspoint-reader: Audiobookshelf, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase, Minesweeper Game, Snake Game, Solitaire Game and Sudoku Game.
+Working on the latest crosspoint-reader: Audiobookshelf, Book Series, Hardcover Sync, Lockscreen, Pong Game, Checkers Game, Chess Game, Dino Game, Maze Chase, Minesweeper Game, Snake Game, Solitaire Game and Sudoku Game.
 
 Skipped by the installer until they are ported: Dark Mode, Smaller Fonts, Bookerly Font and GitHub Sync. Dark Mode is not needed on the latest crosspoint-reader, which has a built-in Night Mode.
 
@@ -214,6 +214,21 @@ Adds Klondike Solitaire, launched from the Plugins row in Settings.
 
 ---
 
+### Book Series
+
+Lists your EPUBs grouped by series, launched from the Plugins row in Settings.
+
+- Opens a list of series names with the number of books in each
+- The Sort row at the top switches between A to Z and Z to A
+- Tap a series to see its books in series order, then tap a book to open it
+- Reads the series name and number stored in each EPUB (Calibre and most EPUB 3 books have them); books without series info are left out
+- The first launch reads every EPUB and shows progress, later launches only read new books
+- Rescan library at the bottom of the list rebuilds everything
+- Needs the Library index, so open the Library screen once first
+- Works on the X3, X4 and X4 Pro, with touch or buttons (Up / Down move, Select opens, Back goes up a level)
+
+---
+
 ### Audiobookshelf
 
 Browse and download ebooks from your Audiobookshelf server, launched from the Plugins row in Settings.
@@ -366,6 +381,9 @@ xteink-plugins/
     ├── snakegame/
     │   ├── plugin.py
     │   └── SnakeActivity.h/.cpp
+    ├── bookseries/
+    │   ├── plugin.py
+    │   └── BookSeriesActivity.h/.cpp
     └── audiobookshelf/
         ├── plugin.py
         ├── AudiobookshelfParse.h
