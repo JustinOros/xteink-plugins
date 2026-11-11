@@ -25,6 +25,13 @@ bool anyButtonPressedImpl(const MappedInputManager& in) {
 }
 constexpr unsigned long IDLE_TIMEOUT_MS = 5UL * 60UL * 1000UL;
 constexpr int STATUS_HEIGHT = 28;
+Rect listRectFor(const GfxRenderer& renderer) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
+  const int contentHeight = renderer.getScreenHeight() - contentTop - metrics.buttonHintsHeight -
+                            metrics.verticalSpacing * 2 - STATUS_HEIGHT;
+  return Rect{0, contentTop, renderer.getScreenWidth(), contentHeight};
+}
 
 const char* shelfLabel(const std::string& id) {
   if (id == "continue-reading") return "Continue Reading";
@@ -404,14 +411,6 @@ void AudiobookshelfActivity::runPending() {
   lastInput = millis();
 }
 
-Rect AudiobookshelfActivity::listRect() const {
-  const auto& metrics = UITheme::getInstance().getMetrics();
-  const int contentTop = metrics.topPadding + metrics.headerHeight + metrics.verticalSpacing;
-  const int contentHeight = renderer.getScreenHeight() - contentTop - metrics.buttonHintsHeight -
-                            metrics.verticalSpacing * 2 - STATUS_HEIGHT;
-  return Rect{0, contentTop, renderer.getScreenWidth(), contentHeight};
-}
-
 void AudiobookshelfActivity::loop() {
   if (pending != Pending::NONE) {
     requestUpdateAndWait();
@@ -439,7 +438,7 @@ void AudiobookshelfActivity::loop() {
   }
   {
     int touched = 0;
-    const auto touch = pluginui::listTouch(mappedInput, renderer, listRect(), rowCount(), selected, touched);
+    const auto touch = pluginui::listTouch(mappedInput, renderer, listRectFor(renderer), rowCount(), selected, touched);
     if (touch != MappedInputManager::RowTouch::None && selectable(touched)) {
       selected = touched;
       if (touch == MappedInputManager::RowTouch::Tap) {

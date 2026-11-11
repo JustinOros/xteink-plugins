@@ -82,5 +82,4 @@ class AudiobookshelfActivity final : public Activity {
                 std::function<void(const std::string&)> onDone);
   void doLogout();
   int rowCount() const;
-  Rect listRect() const;
 };
