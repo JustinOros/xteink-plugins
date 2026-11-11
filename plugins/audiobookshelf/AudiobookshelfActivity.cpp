@@ -437,6 +437,28 @@ void AudiobookshelfActivity::loop() {
     return;
   }
   {
+    const auto swipe = mappedInput.wasSwipe();
+    if (swipe == MappedInputManager::SwipeDir::Up || swipe == MappedInputManager::SwipeDir::Down) {
+      const int rowHeight = renderer.getLineHeight(UI_10_FONT_ID) + 14;
+      int step = listRectFor(renderer).height / rowHeight - 1;
+      if (step < 1) step = 1;
+      const int dir = swipe == MappedInputManager::SwipeDir::Up ? 1 : -1;
+      const int count = rowCount();
+      int target = selected;
+      for (int moved = 0; moved < step; ++moved) {
+        int next = target + dir;
+        while (next >= 0 && next < count && !selectable(next)) next += dir;
+        if (next < 0 || next >= count) break;
+        target = next;
+      }
+      if (target != selected) {
+        selected = target;
+        requestUpdate();
+      }
+      return;
+    }
+  }
+  {
     int touched = 0;
     const auto touch = pluginui::listTouch(mappedInput, renderer, listRectFor(renderer), rowCount(), selected, touched);
     if (touch != MappedInputManager::RowTouch::None && selectable(touched)) {
