@@ -226,6 +226,7 @@ Lists your EPUBs grouped by series, launched from the Plugins row in Settings.
 - Rescan library at the bottom of the list rebuilds everything
 - Needs the Library index, so open the Library screen once first
 - Works on the X3, X4 and X4 Pro, with touch or buttons (Up / Down move, Select opens, Back goes up a level)
+- Books without series info can be tagged with `set-series.py`: put a `series.txt` in a folder (series name on the first line, then one book title per line in reading order) and run `python3 set-series.py` from the folder above it; it walks every folder below, tags the matching epubs, and keeps originals in a series-backup folder
 
 ---
 

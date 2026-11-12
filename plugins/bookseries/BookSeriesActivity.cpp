@@ -282,6 +282,7 @@ void BookSeriesActivity::finishScan() {
   buildOrder();
   selected = 0;
   screen = Screen::SERIES;
+  cleanRefresh = true;
   requestUpdate();
 }
 
@@ -313,6 +314,7 @@ void BookSeriesActivity::openSeries(const int seriesId) {
   savedSelected = selected;
   selected = 0;
   screen = Screen::BOOKS;
+  cleanRefresh = true;
   requestUpdate();
 }
 
@@ -394,6 +396,7 @@ void BookSeriesActivity::handleBack() {
     RenderLock lock(*this);
     screen = Screen::SERIES;
     selected = savedSelected;
+    cleanRefresh = true;
     requestUpdate();
     return;
   }
@@ -524,5 +527,6 @@ void BookSeriesActivity::render(RenderLock&&) {
 
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), tr(STR_DIR_UP), tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-  renderer.displayBuffer();
+  renderer.displayBuffer(cleanRefresh ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+  cleanRefresh = false;
 }

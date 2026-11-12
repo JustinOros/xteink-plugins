@@ -57,6 +57,7 @@ class BookSeriesActivity final : public Activity {
   size_t cachePos = 0;
   bool scanOpen = false;
   bool outOpen = false;
+  bool cleanRefresh = false;
   bool descending = false;
   int activeSeries = -1;
   int selected = 0;
